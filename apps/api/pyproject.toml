@@ -1,0 +1,25 @@
+[project]
+name = "athena-content-api"
+version = "0.1.0"
+description = "Personal content autopilot backend"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.116.0",
+  "uvicorn[standard]>=0.35.0",
+  "pydantic>=2.11.0",
+  "pydantic-settings>=2.10.0",
+  "sqlalchemy>=2.0.41",
+  "asyncpg>=0.30.0",
+  "alembic>=1.16.0",
+  "redis>=6.2.0",
+  "celery>=5.5.0",
+  "httpx>=0.28.0",
+  "greenlet>=3.2.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]

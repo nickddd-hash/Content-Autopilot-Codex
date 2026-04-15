@@ -1,0 +1,130 @@
+from __future__ import annotations
+
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.db.session import get_db_session
+from app.models import ContentPlan, ContentPlanItem, Product
+from app.schemas.content_plan import (
+    ContentPlanCreate,
+    ContentPlanItemCreate,
+    ContentPlanItemRead,
+    ContentPlanItemUpdate,
+    ContentPlanRead,
+    ContentPlanUpdate,
+)
+
+
+router = APIRouter()
+
+
+def _plan_query() -> object:
+    return select(ContentPlan).options(selectinload(ContentPlan.items)).order_by(ContentPlan.created_at.desc())
+
+
+async def _get_plan_or_404(session: AsyncSession, plan_id: UUID) -> ContentPlan:
+    plan = await session.scalar(_plan_query().where(ContentPlan.id == plan_id))
+    if plan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content plan not found.")
+    return plan
+
+
+async def _get_item_or_404(session: AsyncSession, plan_id: UUID, item_id: UUID) -> ContentPlanItem:
+    statement = select(ContentPlanItem).where(
+        ContentPlanItem.id == item_id,
+        ContentPlanItem.plan_id == plan_id,
+    )
+    item = await session.scalar(statement)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content plan item not found.")
+    return item
+
+
+def _build_item(payload: ContentPlanItemCreate) -> ContentPlanItem:
+    return ContentPlanItem(**payload.model_dump())
+
+
+@router.get("", response_model=list[ContentPlanRead])
+async def list_content_plans(
+    product_id: UUID | None = None,
+    session: AsyncSession = Depends(get_db_session),
+) -> list[ContentPlan]:
+    statement = _plan_query()
+    if product_id is not None:
+        statement = statement.where(ContentPlan.product_id == product_id)
+    result = await session.execute(statement)
+    return list(result.scalars().unique().all())
+
+
+@router.post("", response_model=ContentPlanRead, status_code=status.HTTP_201_CREATED)
+async def create_content_plan(
+    payload: ContentPlanCreate,
+    session: AsyncSession = Depends(get_db_session),
+) -> ContentPlan:
+    product = await session.get(Product, payload.product_id)
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found.")
+
+    plan = ContentPlan(
+        product_id=payload.product_id,
+        month=payload.month,
+        theme=payload.theme,
+        status=payload.status,
+    )
+    plan.items = [_build_item(item) for item in payload.items]
+    session.add(plan)
+    await session.commit()
+    return await _get_plan_or_404(session, plan.id)
+
+
+@router.get("/{plan_id}", response_model=ContentPlanRead)
+async def get_content_plan(
+    plan_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+) -> ContentPlan:
+    return await _get_plan_or_404(session, plan_id)
+
+
+@router.patch("/{plan_id}", response_model=ContentPlanRead)
+async def update_content_plan(
+    plan_id: UUID,
+    payload: ContentPlanUpdate,
+    session: AsyncSession = Depends(get_db_session),
+) -> ContentPlan:
+    plan = await _get_plan_or_404(session, plan_id)
+    for field_name, value in payload.model_dump(exclude_unset=True).items():
+        setattr(plan, field_name, value)
+    await session.commit()
+    return await _get_plan_or_404(session, plan_id)
+
+
+@router.post("/{plan_id}/items", response_model=ContentPlanItemRead, status_code=status.HTTP_201_CREATED)
+async def create_content_plan_item(
+    plan_id: UUID,
+    payload: ContentPlanItemCreate,
+    session: AsyncSession = Depends(get_db_session),
+) -> ContentPlanItem:
+    await _get_plan_or_404(session, plan_id)
+    item = _build_item(payload)
+    item.plan_id = plan_id
+    session.add(item)
+    await session.commit()
+    return await _get_item_or_404(session, plan_id, item.id)
+
+
+@router.patch("/{plan_id}/items/{item_id}", response_model=ContentPlanItemRead)
+async def update_content_plan_item(
+    plan_id: UUID,
+    item_id: UUID,
+    payload: ContentPlanItemUpdate,
+    session: AsyncSession = Depends(get_db_session),
+) -> ContentPlanItem:
+    item = await _get_item_or_404(session, plan_id, item_id)
+    for field_name, value in payload.model_dump(exclude_unset=True).items():
+        setattr(item, field_name, value)
+    await session.commit()
+    return await _get_item_or_404(session, plan_id, item_id)
