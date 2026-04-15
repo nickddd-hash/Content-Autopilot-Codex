@@ -1,2 +1,2 @@
-"""Athena Content Autopilot backend."""
+"""Content Autopilot backend."""
 

@@ -33,6 +33,15 @@ class ContentPlanItemRead(ORMModel):
     updated_at: datetime
 
 
+class ContentPlanItemDetailRead(ContentPlanItemRead):
+    generated_draft_title: str | None
+    generated_draft_markdown: str | None
+    generated_summary: str | None
+    generated_hook: str | None
+    generated_cta: str | None
+    generation_mode: str | None
+
+
 class ContentPlanRead(ORMModel):
     id: UUID
     product_id: UUID
@@ -97,3 +106,7 @@ class ContentPlanItemUpdate(BaseModel):
     vk_posted_at: datetime | None = None
     vk_adaptation: dict | None = None
     vk_carousel: dict | None = None
+
+
+class ContentPlanItemStatusUpdate(BaseModel):
+    status: str = Field(min_length=2, max_length=50)

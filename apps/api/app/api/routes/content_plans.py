@@ -11,12 +11,15 @@ from app.db.session import get_db_session
 from app.models import ContentPlan, ContentPlanItem, Product
 from app.schemas.content_plan import (
     ContentPlanCreate,
+    ContentPlanItemDetailRead,
     ContentPlanItemCreate,
     ContentPlanItemRead,
+    ContentPlanItemStatusUpdate,
     ContentPlanItemUpdate,
     ContentPlanRead,
     ContentPlanUpdate,
 )
+from app.services.generation import build_content_plan_item_detail, validate_status_transition
 
 
 router = APIRouter()
@@ -116,6 +119,16 @@ async def create_content_plan_item(
     return await _get_item_or_404(session, plan_id, item.id)
 
 
+@router.get("/{plan_id}/items/{item_id}", response_model=ContentPlanItemDetailRead)
+async def get_content_plan_item(
+    plan_id: UUID,
+    item_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    item = await _get_item_or_404(session, plan_id, item_id)
+    return build_content_plan_item_detail(item)
+
+
 @router.patch("/{plan_id}/items/{item_id}", response_model=ContentPlanItemRead)
 async def update_content_plan_item(
     plan_id: UUID,
@@ -128,3 +141,18 @@ async def update_content_plan_item(
         setattr(item, field_name, value)
     await session.commit()
     return await _get_item_or_404(session, plan_id, item_id)
+
+
+@router.post("/{plan_id}/items/{item_id}/status", response_model=ContentPlanItemDetailRead)
+async def update_content_plan_item_status(
+    plan_id: UUID,
+    item_id: UUID,
+    payload: ContentPlanItemStatusUpdate,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    item = await _get_item_or_404(session, plan_id, item_id)
+    validate_status_transition(item.status, payload.status)
+    item.status = payload.status
+    await session.commit()
+    await session.refresh(item)
+    return build_content_plan_item_detail(item)

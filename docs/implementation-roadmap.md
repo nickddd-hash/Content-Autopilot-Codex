@@ -1,25 +1,15 @@
 # План реализации
 
-## Этап 1. Основа
+## Этап 1. V1 ядро
 
 - Каркас `FastAPI + Next.js`.
 - Конфиг окружения.
 - Docker Compose для `api`, `web`, `postgres`, `redis`.
-- Health-check и базовый dashboard.
+- `Product`, `BrandProfile`, `ContentPlan`, `ContentPlanItem`.
+- Базовый dashboard состояния.
+- Первый ручной flow поверх живых данных.
 
-## Этап 2. Данные
-
-- `Product`
-- `ProductContentSettings`
-- `BrandProfile`
-- `ContentPlan`
-- `ContentPlanItem`
-- `BlogPost`
-- `SocialAccount`
-- `ContentCost`
-- `JobRun`
-
-## Этап 3. Генерация
+## Этап 2. Автоматизация ядра
 
 - OpenRouter client
 - трекинг стоимости
@@ -28,7 +18,7 @@
 - draft + self-review + rewrite
 - генерация изображений
 
-## Этап 4. Публикация
+## Этап 3. Публикация
 
 - блог
 - Telegraph
@@ -36,21 +26,20 @@
 - VK single-image
 - VK carousel
 
-## Этап 5. Автопилот
+## Этап 4. Автопилот
 
 - планировщик задач
 - автоматическая публикация по времени
 - retries и backoff
 - idempotency на job level
 
-## Этап 6. Интерфейс
+## Этап 5. Ingestion и trend layer
 
-- dashboard
-- products
-- calendar
-- content item details
-- social settings
-- logs and costs
+- parser залетевших постов;
+- parser видео / reels / shorts;
+- trend / viral monitoring;
+- rewrite и adaptation внешнего контента;
+- раскладка одной идеи в post / carousel / reel / article / channel adaptation.
 
 ## Правило разработки
 

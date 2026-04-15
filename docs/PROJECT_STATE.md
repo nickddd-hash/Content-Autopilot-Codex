@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Проект развернут как отдельная рабочая область `codex-workspace` внутри основного репозитория.
+Проект уже вынесен в отдельный репозиторий `Content-Autopilot-Codex` и больше не должен рассматриваться как вложенная рабочая область старой ресторанной системы.
 
 На текущий момент готовы:
 
@@ -10,13 +10,21 @@
 - каркас frontend на Next.js;
 - Docker Compose стек для `postgres`, `redis`, `api`, `web`;
 - базовые ORM-модели;
-- первая Alembic migration;
+- Alembic migrations;
 - API для:
   - health;
   - dashboard summary;
   - products CRUD;
-  - product settings;
   - brand profile.
+  - content plans;
+  - setup/bootstrap;
+  - job runs.
+- manual generation contour c provider-based LLM layer;
+- content item lifecycle transitions;
+- operator UI:
+  - dashboard;
+  - content plan page;
+  - content item page.
 
 ## Server Status
 
@@ -35,14 +43,15 @@
 - `GET /api/health`
 - `GET /api/dashboard/summary`
 - `GET /api/products`
-- OpenAPI содержит `brand-profile` и `product settings` endpoints
+- OpenAPI содержит `brand-profile`, `content-plans`, `setup`, `job-runs`
 
 ## Not Done Yet
 
-- заполнение первого продукта реальными данными;
-- content plan CRUD;
-- генерация контент-плана через LLM;
-- article pipeline;
+- прогон bootstrap и generation flow на реально поднятом окружении;
+- реальная проверка web build/run после установки зависимостей;
+- полноценный review/editor UX поверх generated drafts;
+- генерация контент-плана как отдельный flow поверх существующего generation engine;
+- article pipeline после `review-ready`;
 - VK integration;
 - Celery workers and scheduler;
 - production reverse proxy and domain setup;

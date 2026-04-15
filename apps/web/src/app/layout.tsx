@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Athena Content Autopilot",
+  title: "Content Autopilot",
   description: "Personal AI marketing autopilot",
 };
 

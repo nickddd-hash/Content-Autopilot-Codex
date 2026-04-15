@@ -24,4 +24,4 @@ async def on_startup() -> None:
 
 @app.get("/", tags=["system"])
 async def root() -> dict[str, str]:
-    return {"message": "Athena Content Autopilot API"}
+    return {"message": "Content Autopilot API"}

@@ -1,5 +1,5 @@
 [project]
-name = "athena-content-api"
+name = "content-autopilot-api"
 version = "0.1.0"
 description = "Personal content autopilot backend"
 requires-python = ">=3.11"
