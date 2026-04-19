@@ -2,7 +2,7 @@
 name = "content-autopilot-api"
 version = "0.1.0"
 description = "Personal content autopilot backend"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
   "fastapi>=0.116.0",
   "uvicorn[standard]>=0.35.0",
@@ -15,6 +15,7 @@ dependencies = [
   "celery>=5.5.0",
   "httpx>=0.28.0",
   "greenlet>=3.2.0",
+  "aiosqlite>=0.20.0",
 ]
 
 [build-system]

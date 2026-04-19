@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.db.base import Base
-from app.models import blog_post, brand_profile, content_plan, job_run, product, social_account
+from app.models import blog_post, brand_profile, content_plan, job_run, monitoring, product, social_account, system  # noqa: F401
 
 
 async def create_database_tables(engine: AsyncEngine) -> None:

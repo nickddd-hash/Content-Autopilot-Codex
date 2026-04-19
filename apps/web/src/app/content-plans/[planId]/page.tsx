@@ -23,45 +23,41 @@ type ContentPlan = {
   items: ContentPlanItem[];
 };
 
-type JobRunResponse = {
-  item_status: string;
-};
-
-function getQuickActions(status: string): string[] {
-  if (status === "planned") return ["generate"];
-  if (status === "draft") return ["review-ready"];
-  if (status === "review-ready") return ["published", "failed"];
-  if (status === "failed") return ["draft"];
-  return [];
+function getBadgeClass(status: string) {
+  const s = status.toLowerCase();
+  if (["published", "completed"].includes(s)) return "badge badge-success";
+  if (["draft", "planned"].includes(s)) return "badge badge-outline";
+  if (["failed", "error"].includes(s)) return "badge badge-danger";
+  if (["running", "in_progress"].includes(s)) return "badge badge-warning";
+  if (["review-ready"].includes(s)) return "badge badge-info";
+  return "badge badge-info";
 }
 
-async function runGenerationAction(formData: FormData) {
+async function generatePlanItemsAction(formData: FormData) {
   "use server";
+  const planId = String(formData.get("planId"));
+  await postJson(`/content-plans/${planId}/generate-items`, {});
+  revalidatePath(`/content-plans/${planId}`);
+  revalidatePath("/");
+}
 
+async function runItemGenerationAction(formData: FormData) {
+  "use server";
   const planId = String(formData.get("planId"));
   const itemId = String(formData.get("itemId"));
-
-  await postJson<JobRunResponse>(`/job-runs/content-plans/${planId}/items/${itemId}/start-generation`, {
+  await postJson(`/job-runs/content-plans/${planId}/items/${itemId}/start-generation`, {
     notes: "Triggered from content plan page",
   });
-
   revalidatePath(`/content-plans/${planId}`);
-  revalidatePath(`/content-plans/${planId}/items/${itemId}`);
-  revalidatePath("/");
 }
 
 async function moveStatusAction(formData: FormData) {
   "use server";
-
   const planId = String(formData.get("planId"));
   const itemId = String(formData.get("itemId"));
   const status = String(formData.get("status"));
-
   await postJson(`/content-plans/${planId}/items/${itemId}/status`, { status });
-
   revalidatePath(`/content-plans/${planId}`);
-  revalidatePath(`/content-plans/${planId}/items/${itemId}`);
-  revalidatePath("/");
 }
 
 export default async function ContentPlanPage({
@@ -74,106 +70,93 @@ export default async function ContentPlanPage({
 
   if (!plan) {
     return (
-      <main className="page-shell">
-        <section className="hero">
-          <p className="eyebrow">Content Plan</p>
-          <h1>План не найден</h1>
-          <p className="lead">Похоже, API еще не поднят или этого content plan нет.</p>
-          <Link href="/" className="inline-link">
-            Вернуться в dashboard
-          </Link>
-        </section>
-      </main>
+      <header className="page-header">
+        <div>
+           <h1>План не найден</h1>
+           <p className="lead">Не удалось загрузить данные контент-плана.</p>
+        </div>
+      </header>
     );
   }
 
   return (
-    <main className="page-shell dashboard-shell">
-      <section className="hero dashboard-hero">
+    <>
+      <header className="page-header">
         <div>
-          <p className="eyebrow">Content Plan</p>
+          <p className="eyebrow">Контент-план: {plan.month}</p>
           <h1>{plan.theme}</h1>
-          <p className="lead">
-            {plan.month} · {statusLabel(plan.status)} · {plan.items.length} items
+          <p className="lead" style={{ marginTop: "12px", display: "flex", gap: "12px", alignItems: "center" }}>
+            <span className={getBadgeClass(plan.status)}>{statusLabel(plan.status)}</span>
+            <span>Темы: {plan.items.length}</span>
           </p>
         </div>
-        <div className="hero-panel">
-          <span className="panel-label">Plan focus</span>
-          <strong>{plan.theme}</strong>
-          <p>Этот экран нужен как рабочий слой между общим dashboard и detail каждого item-а.</p>
+        <div style={{ display: "flex", gap: "12px" }}>
+          <form action={generatePlanItemsAction}>
+             <input type="hidden" name="planId" value={plan.id} />
+             <button type="submit" className="btn btn-primary" title="Нейросеть предложит новые темы">Генерировать темы</button>
+          </form>
         </div>
-      </section>
+      </header>
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="panel-kicker">Items</p>
-            <h2>Элементы контент-плана</h2>
+      <section className="panel-grid" style={{ gridTemplateColumns: "1fr" }}>
+        <article className="panel">
+          <div className="panel-header">
+            <div>
+              <span className="panel-kicker">Пайплайн</span>
+              <h2 className="panel-title">Очередь контента</h2>
+            </div>
+            <Link href="/" className="btn">← На дашборд</Link>
           </div>
-          <Link href="/" className="inline-link">
-            Вернуться в dashboard
-          </Link>
-        </div>
 
-        <div className="list-stack">
-          {plan.items.map((item) => {
-            const quickActions = getQuickActions(item.status);
-
-            return (
-              <div key={item.id} className="list-item list-item-stacked">
-                <div className="item-main">
-                  <strong>
-                    {item.order + 1}. {item.title}
-                  </strong>
-                  <p>
-                    {statusLabel(item.status)} · {item.article_type} · {item.cta_type}
-                  </p>
-                  <p>{item.angle || "Угол подачи пока не заполнен."}</p>
-                  <div className="item-link-list">
-                    {item.target_keywords.map((keyword) => (
-                      <span key={keyword} className="chip">
-                        {keyword}
-                      </span>
-                    ))}
+          <div className="list-container">
+            {plan.items.length > 0 ? (
+              plan.items.map((item) => (
+                <div key={item.id} className="list-item" style={{ alignItems: "flex-start", padding: "24px 0" }}>
+                  <div style={{ paddingRight: "40px" }}>
+                    <span className="list-item-sub" style={{ display: "block", marginBottom: "8px" }}>#{item.order + 1} • {item.article_type}</span>
+                    <strong className="list-item-title" style={{ fontSize: "1.1rem" }}>{item.title}</strong>
+                    <p style={{ color: "var(--muted)", margin: "8px 0", fontSize: "0.9rem", maxWidth: "800px" }}>
+                      {item.angle || "Угол подачи не задан."}
+                    </p>
+                    <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                      {item.target_keywords.map(kw => (
+                        <span key={kw} className="badge badge-outline" style={{ fontSize: "0.7rem" }}>{kw}</span>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "12px", minWidth: "200px" }}>
+                    <span className={getBadgeClass(item.status)}>{statusLabel(item.status)}</span>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                       <Link href={`/content-plans/${plan.id}/items/${item.id}`} className="btn">Редактор</Link>
+                       {item.status === "planned" && (
+                         <form action={runItemGenerationAction}>
+                           <input type="hidden" name="planId" value={plan.id} />
+                           <input type="hidden" name="itemId" value={item.id} />
+                           <button type="submit" className="btn btn-primary">Создать черновик</button>
+                         </form>
+                       )}
+                       {item.status === "draft" && (
+                         <form action={moveStatusAction}>
+                           <input type="hidden" name="planId" value={plan.id} />
+                           <input type="hidden" name="itemId" value={item.id} />
+                           <input type="hidden" name="status" value="review-ready" />
+                           <button type="submit" className="btn">На проверку</button>
+                         </form>
+                       )}
+                    </div>
                   </div>
                 </div>
-
-                <div className="item-actions">
-                  <Link
-                    href={`/content-plans/${plan.id}/items/${item.id}`}
-                    className="action-button action-link"
-                  >
-                    Открыть item
-                  </Link>
-
-                  {quickActions.includes("generate") ? (
-                    <form action={runGenerationAction}>
-                      <input type="hidden" name="planId" value={plan.id} />
-                      <input type="hidden" name="itemId" value={item.id} />
-                      <button type="submit" className="action-button action-primary">
-                        Run generation
-                      </button>
-                    </form>
-                  ) : null}
-
-                  {quickActions
-                    .filter((action) => action !== "generate")
-                    .map((action) => (
-                      <form action={moveStatusAction} key={action}>
-                        <input type="hidden" name="planId" value={plan.id} />
-                        <input type="hidden" name="itemId" value={item.id} />
-                        <input type="hidden" name="status" value={action} />
-                        <button type="submit" className="action-button">
-                          Move to {statusLabel(action)}
-                        </button>
-                      </form>
-                    ))}
-                </div>
+              ))
+            ) : (
+              <div className="empty-state">
+                <strong>В очереди пока пусто</strong>
+                <p>Нажмите кнопку "Генерировать темы" выше, чтобы автопилот предложил идеи статей.</p>
               </div>
-            );
-          })}
-        </div>
+            )}
+          </div>
+        </article>
       </section>
-    </main>
+    </>
   );
 }

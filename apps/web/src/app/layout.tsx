@@ -1,6 +1,8 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { ReactNode } from "react";
+import Sidebar from "@/components/Sidebar";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export const metadata: Metadata = {
   title: "Content Autopilot",
@@ -10,7 +12,16 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body>
+        <div className="app-shell">
+          {/* @ts-expect-error Server Component */}
+          <Sidebar />
+          <main className="main-content">
+            <Breadcrumbs />
+            {children}
+          </main>
+        </div>
+      </body>
     </html>
   );
 }

@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -20,7 +21,7 @@ from app.schemas.content_plan import (
     ContentPlanUpdate,
 )
 from app.services.generation import build_content_plan_item_detail, validate_status_transition
-
+from app.services.plan_generation import generate_plan_items_for_plan, generate_rewrite_items_from_ingested
 
 router = APIRouter()
 
@@ -156,3 +157,26 @@ async def update_content_plan_item_status(
     await session.commit()
     await session.refresh(item)
     return build_content_plan_item_detail(item)
+
+
+@router.post("/{plan_id}/generate-items", response_model=list[ContentPlanItemRead])
+async def generate_plan_items(
+    plan_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+) -> list[ContentPlanItem]:
+    """Uses LLM to generate items for the given content plan."""
+    return await generate_plan_items_for_plan(session, plan_id)
+
+
+class RewriteFromIngestedPayload(BaseModel):
+    ingested_content_ids: list[UUID]
+
+
+@router.post("/{plan_id}/rewrite-from-ingested", response_model=list[ContentPlanItemRead])
+async def rewrite_items_from_ingested(
+    plan_id: UUID,
+    payload: RewriteFromIngestedPayload,
+    session: AsyncSession = Depends(get_db_session),
+) -> list[ContentPlanItem]:
+    """Creates ContentPlanItems from viral IngestedContent in 'Rewrite' mode."""
+    return await generate_rewrite_items_from_ingested(session, plan_id, payload.ingested_content_ids)

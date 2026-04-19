@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.schemas.common import ORMModel
+from app.schemas.monitoring import ChannelRead, MonitoringSourceRead
 
 
 class ProductContentSettingsRead(ORMModel):
@@ -50,6 +51,8 @@ class ProductRead(ORMModel):
     created_at: datetime
     updated_at: datetime
     content_settings: ProductContentSettingsRead | None
+    channels: list[ChannelRead] = Field(default_factory=list)
+    monitoring_sources: list[MonitoringSourceRead] = Field(default_factory=list)
 
 
 class ProductContentSettingsPayload(BaseModel):

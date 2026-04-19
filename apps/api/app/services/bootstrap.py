@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,7 +55,7 @@ def _seed_plan_items() -> list[ContentPlanItem]:
 
 
 async def bootstrap_first_workspace(session: AsyncSession) -> BootstrapWorkspaceResponse:
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     month_key = now.strftime("%Y-%m")
 
     product_statement = (

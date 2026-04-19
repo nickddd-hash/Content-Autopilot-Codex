@@ -24,6 +24,21 @@ async def list_job_runs(
     result = await session.execute(statement)
     return list(result.scalars().all())
 
+@router.get("/content-plans/{plan_id}/items/{item_id}/latest", response_model=JobRunRead | None)
+async def get_latest_job_run_for_item(
+    plan_id: UUID,
+    item_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+) -> JobRun | None:
+    statement = (
+        select(JobRun)
+        .where(JobRun.content_plan_item_id == item_id)
+        .order_by(JobRun.created_at.desc())
+        .limit(1)
+    )
+    result = await session.execute(statement)
+    return result.scalar_one_or_none()
+
 
 @router.post(
     "/content-plans/{plan_id}/items/{item_id}/start-generation",

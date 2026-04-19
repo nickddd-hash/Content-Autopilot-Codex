@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from typing import Any
 from uuid import UUID
 
@@ -51,7 +51,7 @@ async def get_content_plan_item_or_404(
 def _build_fallback_generation_payload(item: ContentPlanItem, product: Product | None) -> dict[str, Any]:
     product_name = product.name if product else "Product"
     return {
-        "generated_at": datetime.now(UTC).isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "generator_mode": "fallback_stub",
         "draft_title": item.title,
         "draft_markdown": (
@@ -142,7 +142,7 @@ async def start_manual_generation(
     notes: str | None = None,
 ) -> StartGenerationResponse:
     plan, item = await get_content_plan_item_or_404(session, plan_id, item_id)
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     brand_profile = await session.scalar(select(BrandProfile).limit(1))
 
     job_run = JobRun(
@@ -176,7 +176,7 @@ async def start_manual_generation(
 
     item.research_data = {
         "generation_payload": generation_payload,
-        "generated_at": datetime.now(UTC).isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "generation_mode": result_mode,
     }
     item.article_review = {
@@ -191,7 +191,7 @@ async def start_manual_generation(
     item.status = "draft"
 
     job_run.status = "completed"
-    job_run.finished_at = datetime.now(UTC)
+    job_run.finished_at = datetime.now(timezone.utc)
     job_run.meta_json = {
         **job_run.meta_json,
         "result": result_mode,

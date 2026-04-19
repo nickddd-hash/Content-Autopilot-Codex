@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.routes import brand_profile, content_plans, dashboard, health, job_runs, products, setup
+from app.api.routes import brand_profile, content_plans, dashboard, health, job_runs, monitoring, products, setup, settings
 
 
 api_router = APIRouter()
@@ -11,3 +11,5 @@ api_router.include_router(products.router, prefix="/products", tags=["products"]
 api_router.include_router(content_plans.router, prefix="/content-plans", tags=["content-plans"])
 api_router.include_router(job_runs.router, prefix="/job-runs", tags=["job-runs"])
 api_router.include_router(setup.router, prefix="/setup", tags=["setup"])
+api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
+api_router.include_router(monitoring.router, prefix="/products", tags=["monitoring"])

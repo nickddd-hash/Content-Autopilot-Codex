@@ -25,7 +25,11 @@ router = APIRouter()
 async def list_products(
     session: AsyncSession = Depends(get_db_session),
 ) -> list[Product]:
-    statement = select(Product).options(selectinload(Product.content_settings)).order_by(Product.created_at.desc())
+    statement = select(Product).options(
+        selectinload(Product.content_settings),
+        selectinload(Product.channels),
+        selectinload(Product.monitoring_sources)
+    ).order_by(Product.created_at.desc())
     result = await session.execute(statement)
     return list(result.scalars().unique().all())
 
@@ -63,7 +67,7 @@ async def create_product(
     product.content_settings = ProductContentSettings(**payload.content_settings.model_dump())
     session.add(product)
     await session.commit()
-    await session.refresh(product, attribute_names=["content_settings"])
+    await session.refresh(product, attribute_names=["content_settings", "channels", "monitoring_sources"])
     return product
 
 
@@ -75,7 +79,11 @@ async def get_product(
     statement = (
         select(Product)
         .where(Product.id == product_id)
-        .options(selectinload(Product.content_settings))
+        .options(
+            selectinload(Product.content_settings),
+            selectinload(Product.channels),
+            selectinload(Product.monitoring_sources)
+        )
     )
     product = await session.scalar(statement)
     if product is None:
@@ -92,7 +100,11 @@ async def update_product(
     statement = (
         select(Product)
         .where(Product.id == product_id)
-        .options(selectinload(Product.content_settings))
+        .options(
+            selectinload(Product.content_settings),
+            selectinload(Product.channels),
+            selectinload(Product.monitoring_sources)
+        )
     )
     product = await session.scalar(statement)
     if product is None:
@@ -102,7 +114,7 @@ async def update_product(
         setattr(product, field_name, value)
 
     await session.commit()
-    await session.refresh(product, attribute_names=["content_settings"])
+    await session.refresh(product, attribute_names=["content_settings", "channels", "monitoring_sources"])
     return product
 
 

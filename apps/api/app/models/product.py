@@ -40,6 +40,8 @@ class Product(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     content_plans: Mapped[list["ContentPlan"]] = relationship(back_populates="product")
     blog_posts: Mapped[list["BlogPost"]] = relationship(back_populates="product")
     job_runs: Mapped[list["JobRun"]] = relationship(back_populates="product")
+    channels: Mapped[list["Channel"]] = relationship(back_populates="product", cascade="all, delete-orphan")
+    monitoring_sources: Mapped[list["MonitoringSource"]] = relationship(back_populates="product", cascade="all, delete-orphan")
 
 
 class ProductContentSettings(UUIDPrimaryKeyMixin, TimestampMixin, Base):

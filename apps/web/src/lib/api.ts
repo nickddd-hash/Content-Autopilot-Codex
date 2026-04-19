@@ -1,4 +1,4 @@
-export const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
+export const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api";
 
 export async function fetchJson<T>(path: string, fallback: T): Promise<T> {
   try {
@@ -7,11 +7,13 @@ export async function fetchJson<T>(path: string, fallback: T): Promise<T> {
     });
 
     if (!response.ok) {
+      console.error(`API Error ${response.status} for ${path}`);
       return fallback;
     }
 
     return (await response.json()) as T;
-  } catch {
+  } catch (err) {
+    console.error(`Fetch failed for ${path}:`, err);
     return fallback;
   }
 }
@@ -19,6 +21,23 @@ export async function fetchJson<T>(path: string, fallback: T): Promise<T> {
 export async function postJson<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`API request failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as T;
+}
+
+export async function patchJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    method: "PATCH",
     headers: {
       "Content-Type": "application/json",
     },

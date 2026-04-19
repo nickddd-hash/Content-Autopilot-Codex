@@ -1,5 +1,4 @@
 import Link from "next/link";
-
 import { fetchJson, statusLabel } from "@/lib/api";
 
 type DashboardSummary = {
@@ -35,7 +34,7 @@ type ContentPlan = {
   month: string;
   theme: string;
   status: string;
-  items: Array<{ id: string; status: string }>;
+  items: Array<{ id: string; status: string; title: string }>;
 };
 
 type JobRun = {
@@ -46,8 +45,17 @@ type JobRun = {
   started_at: string | null;
   finished_at: string | null;
   error_message: string | null;
-  meta_json: Record<string, unknown>;
+  meta_json: Record<string, any>;
 };
+
+function getBadgeClass(status: string) {
+  const s = status.toLowerCase();
+  if (["published", "completed", "active"].includes(s)) return "badge badge-success";
+  if (["draft", "planned"].includes(s)) return "badge badge-outline";
+  if (["failed", "error"].includes(s)) return "badge badge-danger";
+  if (["running", "in_progress"].includes(s)) return "badge badge-warning";
+  return "badge badge-info";
+}
 
 export default async function HomePage() {
   const [summary, products, brandProfile, contentPlans, jobRuns] = await Promise.all([
@@ -68,29 +76,25 @@ export default async function HomePage() {
   ]);
 
   const metrics = [
-    { label: "Продукты", value: summary.total_products, hint: `${summary.active_products} активных` },
-    { label: "Автопилот", value: summary.autopilot_enabled_products, hint: "включено продуктов" },
-    { label: "Контент-планы", value: summary.total_content_plans, hint: `${summary.planned_items} элементов planned` },
-    { label: "Ошибки", value: summary.failed_items, hint: `${summary.running_jobs} задач сейчас running` },
+    { label: "Продукты", value: summary.total_products, hint: `${summary.active_products} активно` },
+    { label: "Автопилот", value: summary.autopilot_enabled_products, hint: "проектов" },
+    { label: "Планы", value: summary.total_content_plans, hint: `${summary.planned_items} тем в работе` },
+    { label: "Задачи", value: summary.running_jobs, hint: `${summary.failed_items} ошибок` },
   ];
 
   return (
-    <main className="page-shell dashboard-shell">
-      <section className="hero dashboard-hero">
+    <>
+      <header className="page-header">
         <div>
-          <p className="eyebrow">Content Autopilot</p>
-          <h1>Операционный dashboard контентной системы</h1>
-          <p className="lead">
-            В первой версии нам нужен не промо-экран, а понятный центр управления:
-            продукты, стратегия бренда, контент-планы и общее состояние пайплайна.
-          </p>
+          <p className="eyebrow">Athena Content OS</p>
+          <h1>Дашборд</h1>
+          <p className="lead">Обзор ваших брендов, продуктов и конвейера генерации контента.</p>
         </div>
-        <div className="hero-panel">
-          <span className="panel-label">Текущий фокус</span>
-          <strong>V1 Core</strong>
-          <p>Product, Brand Profile, Content Plan, Dashboard и ручной generation flow.</p>
+        <div style={{ display: "flex", gap: "12px" }}>
+          <Link href="/settings" className="btn">Настройки</Link>
+          <Link href="/products/new" className="btn btn-primary">+ Новый продукт</Link>
         </div>
-      </section>
+      </header>
 
       <section className="stats-grid">
         {metrics.map((metric) => (
@@ -102,43 +106,43 @@ export default async function HomePage() {
         ))}
       </section>
 
-      <section className="dashboard-grid">
-        <article className="panel panel-wide">
+      <section className="panel-grid">
+        <article className="panel">
           <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Продукты</p>
-              <h2>Активные продукты и каналы</h2>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+              <div style={{ background: "rgba(255,255,255,0.05)", padding: "10px", borderRadius: "12px" }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"></path></svg>
+              </div>
+              <div>
+                <span className="panel-kicker">Система</span>
+                <h2 className="panel-title">Активные продукты</h2>
+              </div>
             </div>
-            <span className="panel-badge">{products.length} всего</span>
+            <span className="badge badge-accent">{products.length} всего</span>
           </div>
-          <div className="list-stack">
+          <div className="list-container">
             {products.length > 0 ? (
               products.map((product) => (
                 <div key={product.id} className="list-item">
                   <div>
-                    <strong>{product.name}</strong>
-                    <p>
-                      {product.slug}
-                      {product.category ? ` · ${product.category}` : ""}
-                      {product.lifecycle_stage ? ` · ${product.lifecycle_stage}` : ""}
-                    </p>
-                  </div>
-                  <div className="item-meta">
-                    <span className={`chip ${product.is_active ? "chip-active" : ""}`}>
-                      {product.is_active ? "Активен" : "Выключен"}
+                    <Link href={`/products/${product.id}`} className="list-item-title item-link" style={{ textDecoration: 'none' }}>
+                      {product.name}
+                    </Link>
+                    <span className="list-item-sub">
+                      {product.category || "Общее"} · {product.lifecycle_stage || "Запуск"}
                     </span>
-                    <span className="muted-inline">
-                      {product.primary_channels.length > 0
-                        ? product.primary_channels.join(", ")
-                        : "Каналы еще не заданы"}
+                  </div>
+                  <div>
+                    <span className={getBadgeClass(product.is_active ? "active" : "failed")}>
+                      {product.is_active ? "Активен" : "Отключен"}
                     </span>
                   </div>
                 </div>
               ))
             ) : (
               <div className="empty-state">
-                <strong>Продукты пока не заведены</strong>
-                <p>Следующий рабочий шаг: создать первый реальный Product и связанный Brand Profile.</p>
+                <strong>Продуктов пока нет</strong>
+                <p>Добавьте первый продукт, чтобы начать генерацию контента.</p>
               </div>
             )}
           </div>
@@ -146,146 +150,90 @@ export default async function HomePage() {
 
         <article className="panel">
           <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Brand Profile</p>
-              <h2>Стратегия бренда</h2>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+              <div style={{ background: "rgba(255,255,255,0.05)", padding: "10px", borderRadius: "12px" }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+              </div>
+              <div>
+                <span className="panel-kicker">Стратегия</span>
+                <h2 className="panel-title">Профиль бренда</h2>
+              </div>
             </div>
           </div>
           {brandProfile ? (
-            <div className="detail-stack">
-              <div>
-                <span className="detail-label">Brand</span>
-                <strong>{brandProfile.brand_name || "Без названия"}</strong>
+            <div className="key-value-stack">
+              <div className="kv-pair">
+                <span className="kv-label">Название бренда</span>
+                <span className="kv-val">{brandProfile.brand_name || "Без названия"}</span>
               </div>
-              <div>
-                <span className="detail-label">Summary</span>
-                <p>{brandProfile.brand_summary || "Краткое позиционирование пока не заполнено."}</p>
+              <div className="kv-pair">
+                <span className="kv-label">Описание</span>
+                <span className="kv-val">{brandProfile.brand_summary || "Описание не заполнено."}</span>
               </div>
-              <div>
-                <span className="detail-label">Core messages</span>
-                <p>
+              <div className="kv-pair">
+                <span className="kv-label">Ключевые смыслы</span>
+                <span className="kv-val">
                   {brandProfile.core_messages.length > 0
-                    ? brandProfile.core_messages.join(" · ")
-                    : "Сообщения бренда еще не заданы."}
-                </p>
-              </div>
-              <div>
-                <span className="detail-label">Channel strategy</span>
-                <p>
-                  {Object.keys(brandProfile.channel_strategy).length > 0
-                    ? Object.entries(brandProfile.channel_strategy)
-                        .map(([channel, strategy]) => `${channel}: ${strategy}`)
-                        .join(" | ")
-                    : "Стратегия по каналам еще не заполнена."}
-                </p>
+                    ? brandProfile.core_messages.join(" • ")
+                    : "Не определены."}
+                </span>
               </div>
             </div>
           ) : (
             <div className="empty-state">
-              <strong>Brand Profile еще пустой</strong>
-              <p>Для v1 это одна из главных сущностей: без нее автопилот не понимает голос и правила бренда.</p>
+              <strong>Профиль бренда отсутствует</strong>
+              <p>Автопилоту нужен профиль, чтобы понимать голос и правила вашего бренда.</p>
             </div>
           )}
         </article>
 
         <article className="panel panel-wide">
           <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Content Plans</p>
-              <h2>Планы и их состояние</h2>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+              <div style={{ background: "rgba(255,255,255,0.05)", padding: "10px", borderRadius: "12px" }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+              </div>
+              <div>
+                <span className="panel-kicker">Исполнение</span>
+                <h2 className="panel-title">Активные контент-планы</h2>
+              </div>
             </div>
-            <span className="panel-badge">{contentPlans.length} планов</span>
           </div>
-          <div className="list-stack">
+          <div className="list-container">
             {contentPlans.length > 0 ? (
               contentPlans.map((plan) => (
                 <div key={plan.id} className="list-item">
-                  <div>
-                    <strong>{plan.theme}</strong>
-                    <p>{plan.month}</p>
-                    <div className="item-link-list">
-                      <Link href={`/content-plans/${plan.id}`} className="item-link">
-                        Открыть план
-                      </Link>
-                    </div>
-                    {plan.items.length > 0 ? (
-                      <div className="item-link-list">
-                        {plan.items.map((item, index) => (
-                          <Link
-                            key={item.id}
-                            href={`/content-plans/${plan.id}/items/${item.id}`}
-                            className="item-link"
-                          >
-                            Item {index + 1} · {statusLabel(item.status)}
-                          </Link>
-                        ))}
-                      </div>
-                    ) : null}
+                  <div style={{ minWidth: "300px" }}>
+                    <span className="list-item-title">{plan.theme}</span>
+                    <span className="list-item-sub">{plan.month}</span>
                   </div>
-                  <div className="item-meta">
-                    <span className="chip">{statusLabel(plan.status)}</span>
-                    <span className="muted-inline">{plan.items.length} items</span>
+                  <div style={{ flex: 1, display: "flex", gap: "10px", flexWrap: "wrap", margin: "0 20px" }}>
+                     {plan.items.slice(0, 3).map((item, i) => (
+                       <Link key={item.id} href={`/content-plans/${plan.id}/items/${item.id}`} className="badge badge-outline" style={{ textDecoration: 'none' }}>
+                         {item.title || `Тема ${i+1}`}
+                       </Link>
+                     ))}
+                     {plan.items.length > 3 && (
+                       <span className="badge badge-accent">+{plan.items.length - 3} еще</span>
+                     )}
+                  </div>
+                  <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                    <span className={getBadgeClass(plan.status)}>{statusLabel(plan.status)}</span>
+                    <Link href={`/content-plans/${plan.id}`} className="btn btn-sm">
+                      Открыть план
+                    </Link>
                   </div>
                 </div>
               ))
             ) : (
               <div className="empty-state">
-                <strong>Пока нет ни одного контент-плана</strong>
-                <p>После продуктов и brand profile это следующая опорная сущность текущей версии.</p>
+                <strong>Планов пока нет</strong>
+                <p>Создайте план на следующий месяц, чтобы начать работу.</p>
               </div>
             )}
           </div>
-        </article>
-
-        <article className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Generation Jobs</p>
-              <h2>Последние ручные запуски</h2>
-            </div>
-          </div>
-          <div className="list-stack compact-stack">
-            {jobRuns.length > 0 ? (
-              jobRuns.map((job) => (
-                <div key={job.id} className="list-item compact-item">
-                  <div>
-                    <strong>{job.job_type}</strong>
-                    <p>{job.meta_json.result || job.meta_json.stage || "manual run"}</p>
-                  </div>
-                  <div className="item-meta">
-                    <span className="chip">{statusLabel(job.status)}</span>
-                    <span className="muted-inline">
-                      {job.finished_at ? "завершен" : job.started_at ? "в процессе" : "создан"}
-                    </span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="empty-state">
-                <strong>Запусков пока нет</strong>
-                <p>Следующий шаг после bootstrap: запускать generation jobs для элементов контент-плана.</p>
-              </div>
-            )}
-          </div>
-        </article>
-
-        <article className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Later</p>
-              <h2>Что не тащим в V1</h2>
-            </div>
-          </div>
-          <ul className="later-list">
-            <li>Instagram parser и ingestion чужих постов</li>
-            <li>Parser видео, Reels и Shorts</li>
-            <li>Trend / viral monitoring</li>
-            <li>Rewrite внешнего контента как отдельный pipeline</li>
-            <li>Полный production scheduler и автопостинг</li>
-          </ul>
         </article>
       </section>
-    </main>
+    </>
   );
 }
-
