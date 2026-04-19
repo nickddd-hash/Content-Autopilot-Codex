@@ -1,5 +1,9 @@
 # Project State
 
+## Latest Handoff
+
+The most recent practical handoff for local runtime, content-plan generation state, and the user's PR/blog positioning is recorded in `docs/SESSION_2026-04-19_CONTEXT.md`.
+
 ## Current Status
 
 Проект уже вынесен в отдельный репозиторий `Content-Autopilot-Codex` и больше не должен рассматриваться как вложенная рабочая область старой ресторанной системы.

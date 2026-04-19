@@ -23,6 +23,7 @@ def build_plan_generation_messages(
     brand_profile: BrandProfile | None,
     plan: ContentPlan,
     num_items: int = 8,
+    theme_override: str | None = None,
 ) -> list[dict[str, str]]:
     brand_name = brand_profile.brand_name if brand_profile and brand_profile.brand_name else product.name
     brand_summary = (
@@ -84,7 +85,7 @@ Core messages:
 {_join_lines(core_messages)}
 
 Plan month: {plan.month}
-Plan theme: {plan.theme or "General"}
+Plan theme: {theme_override or plan.theme or "General"}
 
 Please generate {num_items} distinct content plan items that fit this theme.
 """.strip()
@@ -95,7 +96,12 @@ Please generate {num_items} distinct content plan items that fit this theme.
     ]
 
 
-async def generate_plan_items_for_plan(session: AsyncSession, plan_id: uuid.UUID) -> list[ContentPlanItem]:
+async def generate_plan_items_for_plan(
+    session: AsyncSession,
+    plan_id: uuid.UUID,
+    theme_override: str | None = None,
+    num_items_override: int | None = None,
+) -> list[ContentPlanItem]:
     plan_statement = (
         select(ContentPlan)
         .where(ContentPlan.id == plan_id)
@@ -110,36 +116,54 @@ async def generate_plan_items_for_plan(session: AsyncSession, plan_id: uuid.UUID
 
     # Calculate how many items to generate
     settings = plan.product.content_settings
-    num_items = settings.articles_per_month if settings else 4
+    num_items = num_items_override or (settings.articles_per_month if settings else 4)
 
-    messages = build_plan_generation_messages(plan.product, brand_profile, plan, num_items)
+    messages = build_plan_generation_messages(
+        plan.product,
+        brand_profile,
+        plan,
+        num_items,
+        theme_override=theme_override,
+    )
 
     try:
-        response_data = await generate_json(messages)
+        response_data = await generate_json(messages, session=session)
     except LLMClientError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
 
     items_data = response_data.get("items", [])
     if not isinstance(items_data, list):
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="LLM returned invalid format")
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="LLM returned invalid format")
 
     starting_order = max([item.order for item in plan.items], default=0)
     
     new_items = []
     for i, data in enumerate(items_data):
+        if not isinstance(data, dict):
+            continue
+
+        raw_keywords = data.get("target_keywords", [])
+        target_keywords = raw_keywords if isinstance(raw_keywords, list) else []
+
         item = ContentPlanItem(
             plan_id=plan.id,
             product_id=plan.product_id,
             order=starting_order + i + 1,
-            title=data.get("title", f"Generated Item {i+1}"),
-            angle=data.get("angle", ""),
-            target_keywords=data.get("target_keywords", []),
-            article_type=data.get("article_type", "educational"),
-            cta_type=data.get("cta_type", "soft"),
+            title=str(data.get("title") or f"Generated Item {i+1}"),
+            angle=str(data.get("angle") or ""),
+            target_keywords=[str(keyword) for keyword in target_keywords if keyword],
+            article_type=str(data.get("article_type") or "educational"),
+            cta_type=str(data.get("cta_type") or "soft"),
             status="planned"
         )
         session.add(item)
         new_items.append(item)
+
+    if not new_items:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="LLM returned no usable plan items.",
+        )
 
     await session.commit()
     for item in new_items:
@@ -215,4 +239,3 @@ async def generate_rewrite_items_from_ingested(
         await session.refresh(item)
 
     return new_items
-

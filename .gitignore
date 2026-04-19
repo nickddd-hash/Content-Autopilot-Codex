@@ -8,3 +8,5 @@ venv/
 *.db
 *.egg-info/
 .venv/
+api-*.log
+web-*.log

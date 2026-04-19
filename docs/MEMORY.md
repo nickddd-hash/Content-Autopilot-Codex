@@ -1,5 +1,9 @@
 # Memory
 
+## Latest Session
+
+- See `docs/SESSION_2026-04-19_CONTEXT.md` for the latest handoff, local runtime state, brand/blog conclusions, and next-step guidance.
+
 ## Product Direction
 
 - Это не массовый SaaS.

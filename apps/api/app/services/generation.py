@@ -164,7 +164,7 @@ async def start_manual_generation(
 
     try:
         messages = build_generation_messages(plan.product, brand_profile, plan, item)
-        generation_payload = await generate_json(messages)
+        generation_payload = await generate_json(messages, session=session)
         result_mode = "llm_generated"
     except LLMClientError as exc:
         generation_payload = _build_fallback_generation_payload(item, plan.product)

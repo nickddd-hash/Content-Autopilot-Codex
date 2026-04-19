@@ -46,7 +46,7 @@ class ContentPlanRead(ORMModel):
     id: UUID
     product_id: UUID
     month: str
-    theme: str
+    theme: str | None
     status: str
     created_at: datetime
     items: list[ContentPlanItemRead]
@@ -76,7 +76,7 @@ class ContentPlanItemCreate(BaseModel):
 class ContentPlanCreate(BaseModel):
     product_id: UUID
     month: str = Field(pattern=r"^\d{4}-\d{2}$")
-    theme: str = Field(min_length=3, max_length=255)
+    theme: str | None = Field(default=None, min_length=3, max_length=255)
     status: str = Field(default="draft", min_length=2, max_length=50)
     items: list[ContentPlanItemCreate] = Field(default_factory=list)
 
@@ -85,6 +85,11 @@ class ContentPlanUpdate(BaseModel):
     month: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}$")
     theme: str | None = Field(default=None, min_length=3, max_length=255)
     status: str | None = Field(default=None, min_length=2, max_length=50)
+
+
+class GeneratePlanItemsPayload(BaseModel):
+    theme: str | None = Field(default=None, min_length=3, max_length=255)
+    num_items: int | None = Field(default=None, ge=1, le=30)
 
 
 class ContentPlanItemUpdate(BaseModel):

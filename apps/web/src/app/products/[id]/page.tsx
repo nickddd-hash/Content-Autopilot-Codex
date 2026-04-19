@@ -1,19 +1,21 @@
 import { fetchJson, postJson } from "@/lib/api";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
+import ProductContextForm from "./ProductContextForm";
+import ProductPlanForm from "./ProductPlanForm";
 
 async function addChannelAction(formData: FormData) {
   "use server";
   const productId = String(formData.get("productId"));
   const platform = String(formData.get("platform"));
   const name = String(formData.get("name"));
-  
+
   await postJson(`/products/${productId}/channels`, {
     platform,
     name,
-    credentials: {}
+    credentials: {},
   });
-  
+
   revalidatePath(`/products/${productId}`);
 }
 
@@ -23,31 +25,13 @@ async function addSourceAction(formData: FormData) {
   const platform = String(formData.get("platform"));
   const sourceUrl = String(formData.get("sourceUrl"));
   const sourceType = String(formData.get("sourceType"));
-  
-  await postJson(`/monitoring-sources`, {
-    product_id: productId,
+
+  await postJson(`/products/${productId}/monitoring-sources`, {
     platform,
     source_url: sourceUrl,
     source_type: sourceType,
-    is_active: true
   });
-  
-  revalidatePath(`/products/${productId}`);
-}
 
-async function updateProductContextAction(formData: FormData) {
-  "use server";
-  const productId = String(formData.get("productId"));
-  const fullDescription = String(formData.get("fullDescription") || "");
-  const toneOfVoice = String(formData.get("toneOfVoice") || "");
-  const targetAudience = String(formData.get("targetAudience") || "");
-  
-  await patchJson(`/products/${productId}`, {
-    full_description: fullDescription,
-    tone_of_voice: toneOfVoice,
-    target_audience: targetAudience
-  });
-  
   revalidatePath(`/products/${productId}`);
 }
 
@@ -78,7 +62,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <h2 className="panel-title">Каналы</h2>
             </div>
           </div>
-          
+
           <div style={{ marginBottom: "24px", padding: "16px", background: "rgba(255,255,255,0.02)", borderRadius: "16px", border: "1px dashed var(--border)" }}>
             <form action={addChannelAction} style={{ display: "flex", gap: "12px", alignItems: "flex-end", flexWrap: "wrap" }}>
               <input type="hidden" name="productId" value={productId} />
@@ -126,7 +110,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <h2 className="panel-title">Мониторинг конкурентов</h2>
             </div>
           </div>
-          
+
           <div style={{ marginBottom: "24px", padding: "16px", background: "rgba(255,255,255,0.02)", borderRadius: "16px", border: "1px dashed var(--border)" }}>
             <form action={addSourceAction} style={{ display: "flex", gap: "12px", alignItems: "flex-end", flexWrap: "wrap" }}>
               <input type="hidden" name="productId" value={productId} />
@@ -172,6 +156,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             )}
           </div>
         </article>
+
         <article className="panel panel-wide">
           <div className="panel-header">
             <div>
@@ -179,62 +164,21 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <h2 className="panel-title">Контекст и Стратегия продукта</h2>
             </div>
           </div>
-          <form action={updateProductContextAction} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            <input type="hidden" name="productId" value={productId} />
-            
-            <div className="form-group">
-              <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Глубокий контекст (Резюме от Gemini)</span>
-                <span className="badge badge-info" style={{ fontWeight: "normal" }}>full_description</span>
-              </label>
-              <p className="form-hint" style={{ marginBottom: "8px", fontSize: "13px", color: "var(--muted)" }}>
-                Вставьте сюда результаты анализа ваших навыков, проектов и экспертизы. AI-агент будет читать это перед каждой генерацией текста.
-              </p>
-              <textarea 
-                name="fullDescription" 
-                className="form-input" 
-                rows={8} 
-                placeholder="Вставьте глубокий контекст о проекте или вашем личном бренде..."
-                defaultValue={product.full_description || ""}
-              />
+          <ProductContextForm
+            productId={productId}
+            initialFullDescription={product.full_description || ""}
+            initialToneOfVoice={product.tone_of_voice || ""}
+            initialTargetAudience={product.target_audience || ""}
+          />
+        </article>
+        <article className="panel panel-wide">
+          <div className="panel-header">
+            <div>
+              <span className="panel-kicker">Планирование</span>
+              <h2 className="panel-title">Создание контент-плана</h2>
             </div>
-
-            <div className="form-group" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-              <div>
-                <label className="form-label">Голос и Тон (Tone of Voice)</label>
-                <p className="form-hint" style={{ marginBottom: "8px", fontSize: "13px", color: "var(--muted)" }}>
-                  Как общаться с аудиторией? (Например: "Пиши дерзко, без воды, обращайся на 'ты'")
-                </p>
-                <textarea 
-                  name="toneOfVoice" 
-                  className="form-input" 
-                  rows={4} 
-                  placeholder="Опишите стиль..."
-                  defaultValue={product.tone_of_voice || ""}
-                />
-              </div>
-              
-              <div>
-                <label className="form-label">Целевая Аудитория</label>
-                <p className="form-hint" style={{ marginBottom: "8px", fontSize: "13px", color: "var(--muted)" }}>
-                  Для кого мы пишем этот контент?
-                </p>
-                <textarea 
-                  name="targetAudience" 
-                  className="form-input" 
-                  rows={4} 
-                  placeholder="Опишите портрет аудитории..."
-                  defaultValue={product.target_audience || ""}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px" }}>
-              <button type="submit" className="btn btn-primary" style={{ padding: "0 32px" }}>
-                Сохранить контекст
-              </button>
-            </div>
-          </form>
+          </div>
+          <ProductPlanForm productId={productId} />
         </article>
       </section>
     </>

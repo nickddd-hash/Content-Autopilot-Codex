@@ -19,6 +19,7 @@ from app.schemas.content_plan import (
     ContentPlanItemUpdate,
     ContentPlanRead,
     ContentPlanUpdate,
+    GeneratePlanItemsPayload,
 )
 from app.services.generation import build_content_plan_item_detail, validate_status_transition
 from app.services.plan_generation import generate_plan_items_for_plan, generate_rewrite_items_from_ingested
@@ -76,7 +77,7 @@ async def create_content_plan(
     plan = ContentPlan(
         product_id=payload.product_id,
         month=payload.month,
-        theme=payload.theme,
+        theme=(payload.theme or "").strip(),
         status=payload.status,
     )
     plan.items = [_build_item(item) for item in payload.items]
@@ -101,6 +102,8 @@ async def update_content_plan(
 ) -> ContentPlan:
     plan = await _get_plan_or_404(session, plan_id)
     for field_name, value in payload.model_dump(exclude_unset=True).items():
+        if field_name == "theme":
+            value = (value or "").strip()
         setattr(plan, field_name, value)
     await session.commit()
     return await _get_plan_or_404(session, plan_id)
@@ -162,10 +165,16 @@ async def update_content_plan_item_status(
 @router.post("/{plan_id}/generate-items", response_model=list[ContentPlanItemRead])
 async def generate_plan_items(
     plan_id: UUID,
+    payload: GeneratePlanItemsPayload | None = None,
     session: AsyncSession = Depends(get_db_session),
 ) -> list[ContentPlanItem]:
     """Uses LLM to generate items for the given content plan."""
-    return await generate_plan_items_for_plan(session, plan_id)
+    return await generate_plan_items_for_plan(
+        session,
+        plan_id,
+        theme_override=payload.theme if payload else None,
+        num_items_override=payload.num_items if payload else None,
+    )
 
 
 class RewriteFromIngestedPayload(BaseModel):

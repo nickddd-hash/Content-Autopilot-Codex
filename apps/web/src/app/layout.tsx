@@ -14,7 +14,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="ru">
       <body>
         <div className="app-shell">
-          {/* @ts-expect-error Server Component */}
           <Sidebar />
           <main className="main-content">
             <Breadcrumbs />
