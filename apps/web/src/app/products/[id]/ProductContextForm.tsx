@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+
 import { patchJson } from "@/lib/api";
 
 type ProductContextFormProps = {
@@ -45,19 +46,20 @@ export default function ProductContextForm({
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div className="form-group">
         <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>Глубокий контекст (Резюме от Gemini)</span>
+          <span>Глубокий контекст</span>
           <span className="badge badge-info" style={{ fontWeight: "normal" }}>
             full_description
           </span>
         </label>
         <p className="form-hint" style={{ marginBottom: "8px", fontSize: "13px", color: "var(--text-secondary)" }}>
-          Вставьте сюда результаты анализа ваших навыков, проектов и экспертизы. AI-агент будет читать это перед каждой генерацией текста.
+          Вставьте сюда основные выводы о продукте, экспертизе, позиционировании и пользе для аудитории. Этот контекст
+          будет использоваться перед генерацией тем и текстов.
         </p>
         <textarea
           name="fullDescription"
           className="form-input"
           rows={8}
-          placeholder="Вставьте глубокий контекст о проекте или вашем личном бренде..."
+          placeholder="Опишите проект, личный бренд, опыт, сильные стороны и стратегию..."
           value={fullDescription}
           onChange={(event) => setFullDescription(event.target.value)}
         />
@@ -65,9 +67,9 @@ export default function ProductContextForm({
 
       <div className="form-group" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
         <div>
-          <label className="form-label">Голос и тон (Tone of Voice)</label>
+          <label className="form-label">Голос и тон</label>
           <p className="form-hint" style={{ marginBottom: "8px", fontSize: "13px", color: "var(--text-secondary)" }}>
-            Как общаться с аудиторией? Например: "Пиши дерзко, без воды, обращайся на ты".
+            Как должен звучать контент? Например: спокойно, по-человечески, без хайпа и без гуру-интонации.
           </p>
           <textarea
             name="toneOfVoice"
@@ -96,11 +98,7 @@ export default function ProductContextForm({
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "12px", marginTop: "12px" }}>
-        {message && (
-          <span style={{ color: message.includes("сохранен") ? "var(--success)" : "var(--danger)" }}>
-            {message}
-          </span>
-        )}
+        {message && <span style={{ color: message.includes("сохранен") ? "var(--success)" : "var(--danger)" }}>{message}</span>}
         <button type="submit" className="btn btn-primary" style={{ padding: "0 32px" }} disabled={isSaving}>
           {isSaving ? "Сохраняем..." : "Сохранить контекст"}
         </button>

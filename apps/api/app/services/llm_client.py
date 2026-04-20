@@ -35,6 +35,9 @@ class RuntimeLLMSettings:
     app_name: str
 
 
+LLM_HTTP_TIMEOUT_SECONDS = 180.0
+
+
 def _extract_json_payload(raw_text: str) -> dict[str, Any]:
     text = raw_text.strip()
     if text.startswith("```"):
@@ -168,12 +171,15 @@ async def _generate_via_openrouter(
         "response_format": {"type": "json_object"},
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            f"{runtime.openrouter_base_url}/chat/completions",
-            headers=headers,
-            json=payload,
-        )
+    try:
+        async with httpx.AsyncClient(timeout=LLM_HTTP_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                f"{runtime.openrouter_base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+    except httpx.HTTPError as exc:
+        raise LLMClientError(f"OpenRouter request failed: {exc}") from exc
 
     if response.status_code >= 400:
         raise LLMClientError(f"OpenRouter request failed with status {response.status_code}.")
@@ -201,12 +207,15 @@ async def _generate_via_openai(
         "response_format": {"type": "json_object"},
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            f"{runtime.openai_base_url}/chat/completions",
-            headers=headers,
-            json=payload,
-        )
+    try:
+        async with httpx.AsyncClient(timeout=LLM_HTTP_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                f"{runtime.openai_base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+    except httpx.HTTPError as exc:
+        raise LLMClientError(f"OpenAI request failed: {exc}") from exc
 
     if response.status_code >= 400:
         raise LLMClientError(f"OpenAI request failed with status {response.status_code}.")
@@ -240,12 +249,15 @@ async def _generate_via_gemini(
         },
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            f"{runtime.gemini_base_url}/models/{runtime.gemini_model}:generateContent",
-            params={"key": runtime.gemini_api_key},
-            json=payload,
-        )
+    try:
+        async with httpx.AsyncClient(timeout=LLM_HTTP_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                f"{runtime.gemini_base_url}/models/{runtime.gemini_model}:generateContent",
+                params={"key": runtime.gemini_api_key},
+                json=payload,
+            )
+    except httpx.HTTPError as exc:
+        raise LLMClientError(f"Gemini request failed: {exc}") from exc
 
     if response.status_code >= 400:
         raise LLMClientError(f"Gemini request failed with status {response.status_code}.")
@@ -290,12 +302,15 @@ async def _generate_via_kie(
         "Content-Type": "application/json",
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            f"{runtime.kie_base_url}/responses",
-            headers=headers,
-            json=payload,
-        )
+    try:
+        async with httpx.AsyncClient(timeout=LLM_HTTP_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                f"{runtime.kie_base_url}/responses",
+                headers=headers,
+                json=payload,
+            )
+    except httpx.HTTPError as exc:
+        raise LLMClientError(f"KIE request failed: {exc}") from exc
 
     if response.status_code >= 400:
         raise LLMClientError(f"KIE request failed with status {response.status_code}.")

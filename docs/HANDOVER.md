@@ -42,3 +42,7 @@
 - This repository is the continuation point.
 - If resuming from another computer, start from `docs/MEMORY.md`, `docs/PROJECT_STATE.md`, and `docs/SESSION_2026-04-15_CONTEXT.md`.
 
+## Resume Note
+
+- On the next computer, also read `docs/SESSION_2026-04-19_CONTEXT.md` and `docs/SESSION_2026-04-20_CONTEXT.md` before changing infrastructure or restoring runtime state.
+

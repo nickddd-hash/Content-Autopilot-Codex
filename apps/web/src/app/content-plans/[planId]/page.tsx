@@ -114,8 +114,8 @@ export default async function ContentPlanPage({
               <span className="panel-kicker">Планирование</span>
               <h2 className="panel-title">Генерация тем</h2>
               <p className="form-hint" style={{ marginTop: "10px" }}>
-                Оставь тему пустой, чтобы ИИ сам собрал идеи по контексту продукта. Или задай конкретную тему и число
-                постов для отдельного спецблока вне обычного плана.
+                Оставьте тему пустой, чтобы AI сам собрал идеи по контексту продукта. Или задайте конкретную спецтему и
+                число постов для отдельного блока вне обычного плана.
               </p>
             </div>
             <Link href="/" className="btn">
@@ -131,7 +131,7 @@ export default async function ContentPlanPage({
                 type="text"
                 name="themeOverride"
                 className="form-input"
-                placeholder="Например: Что бизнесу реально даёт новый AI-агент"
+                placeholder="Например: что бизнесу реально дает новый AI-агент"
               />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -139,7 +139,7 @@ export default async function ContentPlanPage({
               <input type="number" name="numItems" className="form-input" min={1} max={30} placeholder="Авто" />
             </div>
             <div style={{ display: "flex", alignItems: "end" }}>
-              <button type="submit" className="btn btn-primary" title="ИИ предложит новые темы">
+              <button type="submit" className="btn btn-primary" title="AI предложит новые темы">
                 Сгенерировать темы
               </button>
             </div>

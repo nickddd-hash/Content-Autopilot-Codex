@@ -3,6 +3,7 @@
 ## Latest Handoff
 
 The most recent practical handoff for local runtime, content-plan generation state, and the user's PR/blog positioning is recorded in `docs/SESSION_2026-04-19_CONTEXT.md`.
+The current deployment, restoration, and generation notes from today are recorded in `docs/SESSION_2026-04-20_CONTEXT.md`.
 
 ## Current Status
 
@@ -60,4 +61,11 @@ The most recent practical handoff for local runtime, content-plan generation sta
 - Celery workers and scheduler;
 - production reverse proxy and domain setup;
 - secrets and production env hardening.
+
+## 2026-04-20 Addendum
+
+- Public deployment is available at `https://content.flowsmart.ru`.
+- Server state now includes restored `My PR`, restored brand profile, restored provider settings, and a current content plan.
+- Draft generation works against OpenAI after timeout handling changes, but the current output format is still too article-like for Telegram-first usage.
+- Operator UX for content plans and generated draft review needs a substantial usability pass.
 

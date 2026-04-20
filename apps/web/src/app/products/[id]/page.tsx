@@ -1,6 +1,6 @@
 import { fetchJson, postJson } from "@/lib/api";
-import Link from "next/link";
 import { revalidatePath } from "next/cache";
+
 import ProductContextForm from "./ProductContextForm";
 import ProductPlanForm from "./ProductPlanForm";
 
@@ -41,7 +41,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const product = await fetchJson<any>(`/products/${productId}`, null);
 
   if (!product) {
-    return <div className="empty-state">Product not found.</div>;
+    return <div className="empty-state">Продукт не найден.</div>;
   }
 
   return (
@@ -63,7 +63,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
-          <div style={{ marginBottom: "24px", padding: "16px", background: "rgba(255,255,255,0.02)", borderRadius: "16px", border: "1px dashed var(--border)" }}>
+          <div
+            style={{
+              marginBottom: "24px",
+              padding: "16px",
+              background: "rgba(255,255,255,0.02)",
+              borderRadius: "16px",
+              border: "1px dashed var(--border)",
+            }}
+          >
             <form action={addChannelAction} style={{ display: "flex", gap: "12px", alignItems: "flex-end", flexWrap: "wrap" }}>
               <input type="hidden" name="productId" value={productId} />
               <div style={{ flex: 1, minWidth: "150px" }}>
@@ -77,9 +85,11 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               </div>
               <div style={{ flex: 2, minWidth: "200px" }}>
                 <label className="form-label">Название канала</label>
-                <input type="text" name="name" className="form-input" placeholder="Например: Health Concilium TG" required />
+                <input type="text" name="name" className="form-input" placeholder="Например: AI без сложности TG" required />
               </div>
-              <button type="submit" className="btn btn-primary" style={{ height: "48px" }}>Добавить</button>
+              <button type="submit" className="btn btn-primary" style={{ height: "48px" }}>
+                Добавить
+              </button>
             </form>
           </div>
 
@@ -111,7 +121,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
-          <div style={{ marginBottom: "24px", padding: "16px", background: "rgba(255,255,255,0.02)", borderRadius: "16px", border: "1px dashed var(--border)" }}>
+          <div
+            style={{
+              marginBottom: "24px",
+              padding: "16px",
+              background: "rgba(255,255,255,0.02)",
+              borderRadius: "16px",
+              border: "1px dashed var(--border)",
+            }}
+          >
             <form action={addSourceAction} style={{ display: "flex", gap: "12px", alignItems: "flex-end", flexWrap: "wrap" }}>
               <input type="hidden" name="productId" value={productId} />
               <div style={{ flex: 1, minWidth: "120px" }}>
@@ -133,7 +151,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                 <label className="form-label">Ссылка / URL</label>
                 <input type="text" name="sourceUrl" className="form-input" placeholder="https://instagram.com/..." required />
               </div>
-              <button type="submit" className="btn btn-primary" style={{ height: "48px" }}>Добавить</button>
+              <button type="submit" className="btn btn-primary" style={{ height: "48px" }}>
+                Добавить
+              </button>
             </form>
           </div>
 
@@ -161,7 +181,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <div className="panel-header">
             <div>
               <span className="panel-kicker">База знаний</span>
-              <h2 className="panel-title">Контекст и Стратегия продукта</h2>
+              <h2 className="panel-title">Контекст и стратегия продукта</h2>
             </div>
           </div>
           <ProductContextForm
@@ -171,6 +191,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             initialTargetAudience={product.target_audience || ""}
           />
         </article>
+
         <article className="panel panel-wide">
           <div className="panel-header">
             <div>

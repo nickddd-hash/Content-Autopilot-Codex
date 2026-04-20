@@ -41,3 +41,10 @@
 - HTTPS.
 - Backups for Postgres.
 
+## Session 2026-04-20
+
+- Fix production draft generation so `start-generation` consistently returns a real post instead of a fallback stub.
+- Rework the content item generation format so Telegram output defaults to a concise post, not a long-form article.
+- Redesign operator UX for content plans and generated drafts; the current flow is not user-friendly enough.
+- Make generated plans and generated drafts easier to rediscover after navigation, with clearer entry points from dashboard and product pages.
+

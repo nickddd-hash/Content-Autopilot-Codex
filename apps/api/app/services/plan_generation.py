@@ -18,6 +18,75 @@ def _join_lines(values: list[str]) -> str:
     return "\n".join(f"- {value}" for value in values)
 
 
+def _build_fallback_plan_items(
+    product: Product,
+    plan: ContentPlan,
+    num_items: int,
+    theme_override: str | None = None,
+) -> list[dict[str, Any]]:
+    focus = theme_override or plan.theme or product.value_proposition or product.short_description or product.name
+    audience = product.target_audience or "business owners and practitioners"
+    pillars = [pillar for pillar in product.content_pillars if pillar]
+    keywords = [keyword for keyword in (pillars[:2] or [product.name, "AI automation"]) if keyword]
+
+    templates = [
+        {
+            "title": f"Как {focus} помогает убрать лишнюю ручную работу",
+            "angle": f"Показать на понятных примерах, как {focus} снижает рутину и хаос для аудитории: {audience}.",
+            "article_type": "educational",
+        },
+        {
+            "title": f"5 ситуаций, где {focus} уже даёт практическую пользу",
+            "angle": "Собрать простые прикладные сценарии без перегруза техническими деталями.",
+            "article_type": "listicle",
+        },
+        {
+            "title": f"Почему люди откладывают внедрение {focus} и что им мешает",
+            "angle": "Разобрать страх, лень и ощущение сложности, которые мешают начать.",
+            "article_type": "educational",
+        },
+        {
+            "title": f"Как понять, что {focus} действительно нужен именно вам",
+            "angle": "Дать критерии, по которым человек может увидеть реальную пользу в своей работе.",
+            "article_type": "checklist",
+        },
+        {
+            "title": f"Что выглядит как хайп вокруг {focus}, а что реально работает",
+            "angle": "Сравнить пустые обещания и реальные рабочие сценарии.",
+            "article_type": "comparison",
+        },
+        {
+            "title": f"С чего начать {focus}, если не хочется разбираться в технологиях",
+            "angle": "Показать мягкий вход для нетехнического человека через простые шаги и понятные задачи.",
+            "article_type": "guide",
+        },
+        {
+            "title": f"Как {focus} может помочь эксперту, практике или маленькому бизнесу",
+            "angle": "Приземлить тему на повседневную работу специалистов и владельцев небольших проектов.",
+            "article_type": "educational",
+        },
+        {
+            "title": f"Какие задачи лучше всего отдавать {focus} в первую очередь",
+            "angle": "Выделить задачи с быстрой отдачей и понятным результатом.",
+            "article_type": "checklist",
+        },
+    ]
+
+    items: list[dict[str, Any]] = []
+    for index in range(num_items):
+        template = templates[index % len(templates)]
+        items.append(
+            {
+                "title": template["title"],
+                "angle": template["angle"],
+                "target_keywords": keywords,
+                "article_type": template["article_type"],
+                "cta_type": "soft",
+            }
+        )
+    return items
+
+
 def build_plan_generation_messages(
     product: Product,
     brand_profile: BrandProfile | None,
@@ -128,12 +197,16 @@ async def generate_plan_items_for_plan(
 
     try:
         response_data = await generate_json(messages, session=session)
-    except LLMClientError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
-
-    items_data = response_data.get("items", [])
-    if not isinstance(items_data, list):
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="LLM returned invalid format")
+        items_data = response_data.get("items", [])
+        if not isinstance(items_data, list):
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="LLM returned invalid format")
+    except LLMClientError:
+        items_data = _build_fallback_plan_items(
+            plan.product,
+            plan,
+            num_items,
+            theme_override=theme_override,
+        )
 
     starting_order = max([item.order for item in plan.items], default=0)
     
@@ -147,7 +220,6 @@ async def generate_plan_items_for_plan(
 
         item = ContentPlanItem(
             plan_id=plan.id,
-            product_id=plan.product_id,
             order=starting_order + i + 1,
             title=str(data.get("title") or f"Generated Item {i+1}"),
             angle=str(data.get("angle") or ""),
@@ -218,7 +290,6 @@ async def generate_rewrite_items_from_ingested(
         )
         item = ContentPlanItem(
             plan_id=plan.id,
-            product_id=plan.product_id,
             order=starting_order + i + 1,
             title=f"[Rewrite] {ingested.platform.capitalize()} Viral Content #{i + 1}",
             angle=angle,
