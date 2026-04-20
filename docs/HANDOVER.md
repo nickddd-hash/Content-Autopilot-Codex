@@ -45,4 +45,5 @@
 ## Resume Note
 
 - On the next computer, also read `docs/SESSION_2026-04-19_CONTEXT.md` and `docs/SESSION_2026-04-20_CONTEXT.md` before changing infrastructure or restoring runtime state.
+- For server access, deployment, passwords, and API keys, read `docs/SERVER_ACCESS_AND_SECRETS.md`.
 
