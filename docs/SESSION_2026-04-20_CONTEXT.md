@@ -31,6 +31,23 @@
 - `apps/web/src/app/content-plans/[planId]/page.tsx`
   - current content plan page UI version
 
+## Channel-Aware Content Logic
+
+- Generation logic was further updated so the system no longer assumes one "primary" channel.
+- Instead, the generator now treats the product's active channel set as one combined publishing surface:
+  - one core content idea;
+  - one master draft;
+  - channel-specific adaptations for every active channel.
+- Content-plan generation now also takes active channels into account:
+  - if Telegram is present, it should still produce strong concise post ideas;
+  - if Instagram is present, it can propose carousel / reel / visual-first formats;
+  - if YouTube is present, it can propose video-oriented angles;
+  - if Blog is present, it can include longer article-worthy angles.
+- The logic should not rotate channels mechanically item-by-item.
+- Instead, it should choose themes that fit the whole channel set and then adapt one idea across all relevant outputs.
+- `channel_targets` and `asset_brief` are now stored in item `research_data`.
+- `channel_adaptations` are now returned in generation payloads and displayed in the item detail UI.
+
 ## Deployment Notes
 
 - Initial server deploy showed an outdated landing page because deployed `main` did not include the current local working tree changes.
@@ -54,7 +71,8 @@
 
 ## Next Product Priorities
 
-1. Redesign draft generation output for Telegram-first content.
+1. Refine the generated output shape so the master draft and per-channel adaptations feel production-ready.
 2. Improve content plan and generated draft UX in the operator interface.
-3. Keep hardening production generation so it does not fall back silently under load.
-4. Continue work from this repository and from the deployed server state rather than rebuilding from scratch.
+3. Add real media-generation flows from `asset_brief` for channels that need visuals or video.
+4. Keep hardening production generation so it does not fall back silently under load.
+5. Continue work from this repository and from the deployed server state rather than rebuilding from scratch.

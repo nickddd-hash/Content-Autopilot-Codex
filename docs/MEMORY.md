@@ -3,6 +3,17 @@
 ## Latest Session
 
 - See `docs/SESSION_2026-04-19_CONTEXT.md` for the latest handoff, local runtime state, brand/blog conclusions, and next-step guidance.
+- See `docs/SESSION_2026-04-20_CONTEXT.md` for the current deployed-state handoff and the newer channel-aware generation logic.
+
+## Channel-Aware Rule
+
+- The content factory must not assume one primary channel.
+- It should treat the product's active channels as one combined publishing set:
+  - one core idea;
+  - one master draft;
+  - channel-specific adaptations for every active channel.
+- Content-plan generation must also account for the active channel set when choosing formats and topics.
+- If visual or video-first channels are present, the system may propose `carousel`, `reel`, `video`, and other media-oriented outputs in addition to text.
 
 ## Product Direction
 

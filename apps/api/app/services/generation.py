@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timezone, datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -23,6 +23,26 @@ ALLOWED_STATUS_TRANSITIONS: dict[str, set[str]] = {
 }
 
 
+def _get_active_channel_platforms(product: Product | None) -> list[str]:
+    if product is None:
+        return []
+
+    platforms: list[str] = []
+    for channel in getattr(product, "channels", []) or []:
+        if not getattr(channel, "is_active", True):
+            continue
+        platform = (getattr(channel, "platform", "") or "").strip().lower()
+        if platform and platform not in platforms:
+            platforms.append(platform)
+
+    for channel in (getattr(product, "primary_channels", []) or []):
+        platform = (channel or "").strip().lower()
+        if platform and platform not in platforms:
+            platforms.append(platform)
+
+    return platforms
+
+
 async def get_content_plan_item_or_404(
     session: AsyncSession,
     plan_id: UUID,
@@ -31,7 +51,7 @@ async def get_content_plan_item_or_404(
     plan_statement = (
         select(ContentPlan)
         .where(ContentPlan.id == plan_id)
-        .options(selectinload(ContentPlan.product))
+        .options(selectinload(ContentPlan.product).selectinload(Product.channels))
     )
     plan = await session.scalar(plan_statement)
     if plan is None:
@@ -48,37 +68,76 @@ async def get_content_plan_item_or_404(
     return plan, item
 
 
+def _build_channel_adaptations(item: ContentPlanItem, platforms: list[str]) -> dict[str, dict[str, str]]:
+    adaptations: dict[str, dict[str, str]] = {}
+    for platform in platforms:
+        if platform == "telegram":
+            adaptations[platform] = {
+                "format": "telegram_post",
+                "content_markdown": f"{item.title}\n\nКороткий Telegram-пост с сильным хуком и практической пользой.",
+                "asset_brief": "",
+            }
+        elif platform == "instagram":
+            adaptations[platform] = {
+                "format": "carousel_or_reel",
+                "content_markdown": f"{item.title}\n\nInstagram-адаптация с короткими смысловыми блоками и визуальной опорой.",
+                "asset_brief": "Carousel with 5-7 slides or a short reel with one concrete example.",
+            }
+        elif platform == "youtube":
+            adaptations[platform] = {
+                "format": "video_script",
+                "content_markdown": f"{item.title}\n\nShort video angle with one problem, one example, and one takeaway.",
+                "asset_brief": "Talking-head or demo-style short video.",
+            }
+        elif platform == "blog":
+            adaptations[platform] = {
+                "format": "long_form_article",
+                "content_markdown": f"{item.title}\n\nStructured long-form version with a clear intro, examples, and takeaway.",
+                "asset_brief": "One simple illustration or screenshot-based explainer.",
+            }
+        else:
+            adaptations[platform] = {
+                "format": "adapted_post",
+                "content_markdown": f"{item.title}\n\nAdapted version for {platform}.",
+                "asset_brief": "",
+            }
+
+    return adaptations
+
+
 def _build_fallback_generation_payload(item: ContentPlanItem, product: Product | None) -> dict[str, Any]:
     product_name = product.name if product else "Product"
+    channel_targets = _get_active_channel_platforms(product)
+    channel_adaptations = _build_channel_adaptations(item, channel_targets)
+
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "generator_mode": "fallback_stub",
         "draft_title": item.title,
         "draft_markdown": (
             f"# {item.title}\n\n"
-            f"## Почему эта тема важна\n\n"
-            f"{item.angle or 'Эта тема помогает человеку разобраться в проблеме и увидеть следующий шаг.'}\n\n"
-            "## Как объяснить это без информационного шума\n\n"
-            "Нужно показать проблему спокойно, структурно и без перегруза советами. "
-            "Материал должен соединять образовательную ценность и реальную полезность.\n\n"
-            "## Какой следующий шаг дать читателю\n\n"
-            "Дать один ясный практический шаг и мягко подвести к более персональному маршруту."
+            f"{item.angle or 'This topic helps the reader understand the problem and see a realistic next step.'}\n\n"
+            "Core idea:\n"
+            "- explain the real problem simply;\n"
+            "- show one practical takeaway;\n"
+            "- keep the structure reusable across multiple channels.\n"
         ),
-        "summary": f"Черновой fallback draft для {product_name}.",
-        "hook": "Почему люди читают о проблеме много, но все равно не понимают, что делать дальше?",
-        "cta": "Если хочется не еще один совет, а понятный персональный следующий шаг, стоит перейти к более системному формату сопровождения.",
+        "summary": f"Fallback draft for {product_name}.",
+        "hook": "Why do people keep hearing about a useful idea, but still do nothing with it?",
+        "cta": "If you want a concrete next step instead of generic advice, this topic should lead into a simple practical action.",
+        "channel_adaptations": channel_adaptations,
         "repurposing": {
-            "post": f"Короткий пост по теме: {item.title}",
+            "post": f"Short post version for: {item.title}",
             "carousel": [
-                "Слайд 1: в чем боль и путаница",
-                "Слайд 2: какой системный взгляд нужен",
-                "Слайд 3: какой следующий шаг можно сделать",
+                "Slide 1: the actual problem",
+                "Slide 2: what changes in practice",
+                "Slide 3: one clear next step",
             ],
-            "reel_script": f"Короткий reel script по теме: {item.title}",
+            "reel_script": f"Short reel script for: {item.title}",
         },
         "review_notes": [
-            "Нужна реальная LLM-генерация для более глубокого драфта.",
-            "Нужна редакторская проверка после подключения production pipeline.",
+            "LLM generation failed, so this is a fallback content package.",
+            "A human should check tone and channel fit before publishing.",
         ],
     }
 
@@ -119,9 +178,10 @@ def build_content_plan_item_detail(item: ContentPlanItem) -> dict[str, Any]:
         "generated_summary": generation_payload.get("summary"),
         "generated_hook": generation_payload.get("hook"),
         "generated_cta": generation_payload.get("cta"),
+        "channel_adaptations": generation_payload.get("channel_adaptations", {}),
         "generation_mode": item.article_review.get("generation_mode") if isinstance(item.article_review, dict) else None,
     }
- 
+
 
 def validate_status_transition(current_status: str, next_status: str) -> None:
     if current_status == next_status:

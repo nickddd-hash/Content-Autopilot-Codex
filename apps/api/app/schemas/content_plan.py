@@ -39,6 +39,7 @@ class ContentPlanItemDetailRead(ContentPlanItemRead):
     generated_summary: str | None
     generated_hook: str | None
     generated_cta: str | None
+    channel_adaptations: dict
     generation_mode: str | None
 
 

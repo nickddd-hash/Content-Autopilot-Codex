@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
+
 import { fetchJson, postJson, statusLabel } from "@/lib/api";
 import JobPolling from "./JobPolling";
+
+type ChannelAdaptation = {
+  format?: string;
+  content_markdown?: string;
+  asset_brief?: string;
+};
 
 type ContentPlanItemDetail = {
   id: string;
@@ -20,6 +27,7 @@ type ContentPlanItemDetail = {
   generated_summary: string | null;
   generated_hook: string | null;
   generated_cta: string | null;
+  channel_adaptations: Record<string, ChannelAdaptation>;
   generation_mode: string | null;
 };
 
@@ -63,7 +71,6 @@ async function startVideoGenerationAction(formData: FormData) {
   "use server";
   const planId = String(formData.get("planId"));
   const itemId = String(formData.get("itemId"));
-  // This is a stub action. In the future, this will call the video generation API.
   console.log(`[STUB] Started video generation for ${itemId}`);
   revalidatePath(`/content-plans/${planId}/items/${itemId}`);
 }
@@ -73,7 +80,6 @@ async function startRewriteAction(formData: FormData) {
   const planId = String(formData.get("planId"));
   const itemId = String(formData.get("itemId"));
   const url = String(formData.get("url"));
-  // This is a stub action. In the future, this will call the rewrite API.
   console.log(`[STUB] Started rewrite for ${itemId} using url ${url}`);
   revalidatePath(`/content-plans/${planId}/items/${itemId}`);
 }
@@ -99,10 +105,7 @@ export default async function ContentPlanItemPage({
   params: Promise<{ planId: string; itemId: string }>;
 }) {
   const { planId, itemId } = await params;
-  const item = await fetchJson<ContentPlanItemDetail | null>(
-    `/content-plans/${planId}/items/${itemId}`,
-    null,
-  );
+  const item = await fetchJson<ContentPlanItemDetail | null>(`/content-plans/${planId}/items/${itemId}`, null);
 
   if (!item) {
     return (
@@ -123,13 +126,23 @@ export default async function ContentPlanItemPage({
     typeof item.research_data?.generation_payload === "object" && item.research_data?.generation_payload
       ? (item.research_data.generation_payload as Record<string, unknown>)
       : null;
+  const channelTargets = Array.isArray(item.research_data?.channel_targets)
+    ? (item.research_data.channel_targets as string[])
+    : [];
+  const assetBrief = typeof item.research_data?.asset_brief === "string" ? item.research_data.asset_brief : "";
+  const channelAdaptations =
+    item.channel_adaptations && typeof item.channel_adaptations === "object"
+      ? item.channel_adaptations
+      : {};
 
   return (
     <>
       <header className="page-header">
         <div>
           <p className="eyebrow">
-            <Link href={`/content-plans/${planId}`} className="item-link" style={{marginRight: '8px'}}>План</Link> 
+            <Link href={`/content-plans/${planId}`} className="item-link" style={{ marginRight: "8px" }}>
+              План
+            </Link>
             / Тема #{item.order + 1}
           </p>
           <h1>{item.generated_draft_title || item.title}</h1>
@@ -145,7 +158,7 @@ export default async function ContentPlanItemPage({
               <input type="hidden" name="planId" value={planId} />
               <input type="hidden" name="itemId" value={itemId} />
               <button type="submit" className="btn btn-primary">
-                {item.status === "draft" ? "Перегенерировать Текст" : "Создать текст"}
+                {item.status === "draft" ? "Перегенерировать текст" : "Создать текст"}
               </button>
             </form>
           )}
@@ -154,35 +167,38 @@ export default async function ContentPlanItemPage({
               <input type="hidden" name="planId" value={planId} />
               <input type="hidden" name="itemId" value={itemId} />
               <button type="submit" className="btn" style={{ borderColor: "var(--info)", color: "var(--info)" }}>
-                Сгенерировать Видео
+                Сгенерировать видео
               </button>
             </form>
           )}
           {actions.includes("review-ready") && (
             <form action={updateStatusAction}>
-               <input type="hidden" name="planId" value={planId} />
-               <input type="hidden" name="itemId" value={itemId} />
-               <input type="hidden" name="status" value="review-ready" />
-               <button type="submit" className="btn">На проверку</button>
+              <input type="hidden" name="planId" value={planId} />
+              <input type="hidden" name="itemId" value={itemId} />
+              <input type="hidden" name="status" value="review-ready" />
+              <button type="submit" className="btn">
+                На проверку
+              </button>
             </form>
           )}
           {actions.includes("published") && (
-             <form action={updateStatusAction}>
-               <input type="hidden" name="planId" value={planId} />
-               <input type="hidden" name="itemId" value={itemId} />
-               <input type="hidden" name="status" value="published" />
-               <button type="submit" className="btn btn-primary">Опубликовано</button>
-             </form>
+            <form action={updateStatusAction}>
+              <input type="hidden" name="planId" value={planId} />
+              <input type="hidden" name="itemId" value={itemId} />
+              <input type="hidden" name="status" value="published" />
+              <button type="submit" className="btn btn-primary">
+                Опубликовано
+              </button>
+            </form>
           )}
         </div>
       </header>
 
       <section className="editor-layout">
-        {/* Left Column: Editor & Content */}
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           <article className="panel">
             <div className="panel-header">
-               <h2 className="panel-title">Черновик текста</h2>
+              <h2 className="panel-title">Мастер-черновик</h2>
             </div>
             {item.generated_draft_markdown ? (
               <div className="preview-box">
@@ -190,26 +206,35 @@ export default async function ContentPlanItemPage({
               </div>
             ) : (
               <div className="empty-state">
-                <strong>Текст еще не создан</strong>
-                <p>Нажмите "Создать текст", чтобы AI подготовил первую версию материала.</p>
+                <strong>Текст ещё не создан</strong>
+                <p>Нажмите «Создать текст», чтобы AI подготовил первую версию материала.</p>
               </div>
             )}
           </article>
-          
+
           <article className="panel">
             <div className="panel-header">
-               <span className="panel-kicker">Альтернативный движок</span>
-               <h2 className="panel-title">Rewrite Mode</h2>
+              <span className="panel-kicker">Альтернативный режим</span>
+              <h2 className="panel-title">Rewrite Mode</h2>
             </div>
-            <div style={{ padding: "16px", background: "rgba(255,255,255,0.02)", borderRadius: "16px", border: "1px dashed var(--border)" }}>
+            <div
+              style={{
+                padding: "16px",
+                background: "rgba(255,255,255,0.02)",
+                borderRadius: "16px",
+                border: "1px dashed var(--border)",
+              }}
+            >
               <form action={startRewriteAction} style={{ display: "flex", gap: "12px", alignItems: "flex-end", flexWrap: "wrap" }}>
                 <input type="hidden" name="planId" value={planId} />
                 <input type="hidden" name="itemId" value={itemId} />
                 <div style={{ flex: 1, minWidth: "250px" }}>
-                  <label className="form-label">URL исходного материала (Конкурента)</label>
-                  <input type="text" name="url" className="form-input" placeholder="https://example.com/competitor-article" required />
+                  <label className="form-label">URL исходного материала конкурента</label>
+                  <input type="text" name="url" className="form-input" placeholder="https://example.com/competitor-post" required />
                 </div>
-                <button type="submit" className="btn btn-primary" style={{ height: "48px" }}>Переписать (Rewrite)</button>
+                <button type="submit" className="btn btn-primary" style={{ height: "48px" }}>
+                  Переписать
+                </button>
               </form>
             </div>
           </article>
@@ -217,7 +242,6 @@ export default async function ContentPlanItemPage({
           <JobPolling planId={planId} itemId={itemId} initialStatus={item.status} />
         </div>
 
-        {/* Right Column: Context, Review & Meta */}
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           <article className="panel">
             <div className="panel-header" style={{ marginBottom: "12px" }}>
@@ -236,13 +260,41 @@ export default async function ContentPlanItemPage({
                 <span className="kv-label">Ключевые слова</span>
                 <span className="kv-val">
                   {item.target_keywords.length > 0 ? (
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
-                      {item.target_keywords.map(kw => <span key={kw} className="badge badge-outline">{kw}</span>)}
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
+                      {item.target_keywords.map((kw) => (
+                        <span key={kw} className="badge badge-outline">
+                          {kw}
+                        </span>
+                      ))}
                     </div>
-                  ) : "Нет"}
+                  ) : (
+                    "Нет"
+                  )}
                 </span>
               </div>
-              
+              <div className="kv-pair">
+                <span className="kv-label">Каналы</span>
+                <span className="kv-val">
+                  {channelTargets.length > 0 ? (
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
+                      {channelTargets.map((target) => (
+                        <span key={target} className="badge badge-outline">
+                          {target}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    "Не указаны"
+                  )}
+                </span>
+              </div>
+              {assetBrief ? (
+                <div className="kv-pair">
+                  <span className="kv-label">Визуальный бриф</span>
+                  <span className="kv-val">{assetBrief}</span>
+                </div>
+              ) : null}
+
               <hr style={{ borderColor: "var(--border)", margin: "12px 0" }} />
 
               <div className="kv-pair">
@@ -256,42 +308,78 @@ export default async function ContentPlanItemPage({
             </div>
           </article>
 
+          {Object.keys(channelAdaptations).length > 0 && (
+            <article className="panel">
+              <div className="panel-header" style={{ marginBottom: "12px" }}>
+                <span className="panel-kicker">Адаптации по каналам</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {Object.entries(channelAdaptations).map(([channel, adaptation]) => (
+                  <div
+                    key={channel}
+                    style={{
+                      padding: "12px",
+                      border: "1px solid var(--border)",
+                      borderRadius: "12px",
+                      background: "rgba(255,255,255,0.02)",
+                    }}
+                  >
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px", flexWrap: "wrap" }}>
+                      <strong>{channel}</strong>
+                      {adaptation.format ? <span className="badge badge-outline">{adaptation.format}</span> : null}
+                    </div>
+                    {adaptation.content_markdown ? (
+                      <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{adaptation.content_markdown}</pre>
+                    ) : null}
+                    {adaptation.asset_brief ? (
+                      <p style={{ color: "var(--muted)", marginTop: "8px", marginBottom: 0 }}>{adaptation.asset_brief}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </article>
+          )}
+
           {reviewNotes.length > 0 && (
-             <article className="panel">
-               <div className="panel-header" style={{ marginBottom: "12px" }}>
-                 <span className="panel-kicker">Заметки редактора</span>
-               </div>
-               <ul style={{ listStylePosition: "inside", padding: 0, margin: 0, color: "var(--text)" }}>
-                 {reviewNotes.map((note, i) => (
-                   <li key={i} style={{ marginBottom: "8px", fontSize: "0.9rem" }}>{note}</li>
-                 ))}
-               </ul>
-             </article>
+            <article className="panel">
+              <div className="panel-header" style={{ marginBottom: "12px" }}>
+                <span className="panel-kicker">Заметки редактора</span>
+              </div>
+              <ul style={{ listStylePosition: "inside", padding: 0, margin: 0, color: "var(--text)" }}>
+                {reviewNotes.map((note, i) => (
+                  <li key={i} style={{ marginBottom: "8px", fontSize: "0.9rem" }}>
+                    {note}
+                  </li>
+                ))}
+              </ul>
+            </article>
           )}
 
           {generationPayload && (
-             <details style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "16px", padding: "16px" }}>
-               <summary style={{ cursor: "pointer", fontWeight: "600", color: "var(--muted)", outline: "none" }}>Данные для разработчиков</summary>
-               <div className="preview-box" style={{ marginTop: "16px" }}>
-                 <pre>{JSON.stringify(generationPayload, null, 2)}</pre>
-               </div>
-             </details>
+            <details style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "16px", padding: "16px" }}>
+              <summary style={{ cursor: "pointer", fontWeight: "600", color: "var(--muted)", outline: "none" }}>
+                Данные для разработчиков
+              </summary>
+              <div className="preview-box" style={{ marginTop: "16px" }}>
+                <pre>{JSON.stringify(generationPayload, null, 2)}</pre>
+              </div>
+            </details>
           )}
-          
+
           <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
-             {actions.map((action) => {
-               if (action === "generate" || action === "review-ready" || action === "published") return null;
-               return (
-                 <form action={updateStatusAction} key={action} style={{ width: "100%" }}>
-                   <input type="hidden" name="planId" value={planId} />
-                   <input type="hidden" name="itemId" value={itemId} />
-                   <input type="hidden" name="status" value={action} />
-                   <button type="submit" className="btn" style={{ width: "100%" }}>
-                     Перевести в {statusLabel(action)}
-                   </button>
-                 </form>
-               );
-             })}
+            {actions.map((action) => {
+              if (action === "generate" || action === "review-ready" || action === "published") return null;
+              return (
+                <form action={updateStatusAction} key={action} style={{ width: "100%" }}>
+                  <input type="hidden" name="planId" value={planId} />
+                  <input type="hidden" name="itemId" value={itemId} />
+                  <input type="hidden" name="status" value={action} />
+                  <button type="submit" className="btn" style={{ width: "100%" }}>
+                    Перевести в {statusLabel(action)}
+                  </button>
+                </form>
+              );
+            })}
           </div>
         </div>
       </section>
