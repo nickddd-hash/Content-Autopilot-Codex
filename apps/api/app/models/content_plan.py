@@ -21,6 +21,7 @@ class ContentPlan(UUIDPrimaryKeyMixin, Base):
     month: Mapped[str] = mapped_column(String(7), nullable=False, index=True)
     theme: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="draft", index=True)
+    settings_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -33,6 +34,7 @@ class ContentPlan(UUIDPrimaryKeyMixin, Base):
         cascade="all, delete-orphan",
         order_by="ContentPlanItem.order",
     )
+    job_runs: Mapped[list["JobRun"]] = relationship(back_populates="content_plan")
 
 
 class ContentPlanItem(UUIDPrimaryKeyMixin, TimestampMixin, NamedStatusMixin, Base):

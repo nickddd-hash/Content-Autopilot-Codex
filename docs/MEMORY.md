@@ -1,70 +1,178 @@
 # Memory
 
-## Latest Session
+## Working Rules
 
-- See `docs/SESSION_2026-04-19_CONTEXT.md` for the latest handoff, local runtime state, brand/blog conclusions, and next-step guidance.
-- See `docs/SESSION_2026-04-20_CONTEXT.md` for the current deployed-state handoff and the newer channel-aware generation logic.
+- Make point fixes only when the task is local.
+- Do not rewrite whole files for small fixes.
+- After each edit, compare the changed file with the previous version and confirm that only the intended lines changed.
+- At the start of each session, read memory and handover files before making changes.
 
-## Channel-Aware Rule
+## Latest Session Snapshot
 
-- The content factory must not assume one primary channel.
-- It should treat the product's active channels as one combined publishing set:
-  - one core idea;
-  - one master draft;
-  - channel-specific adaptations for every active channel.
-- Content-plan generation must also account for the active channel set when choosing formats and topics.
-- If visual or video-first channels are present, the system may propose `carousel`, `reel`, `video`, and other media-oriented outputs in addition to text.
+- Plan page now has a clickable per-project calendar based on `scheduled_at`.
+- Clicking a date shows all posts scheduled for that project on that day.
+- Full plan assembly now runs through a background pipeline with latest-job polling.
+- Archive screen exists and archived materials are hidden from active plan lists.
+- Item page supports save, regenerate text, regenerate illustration, publish now, archive and restore.
+- Text regeneration must preserve:
+  - `content_direction`
+  - `channel_targets`
+  - `include_illustration`
+  and regenerate the title too.
+- Telegram publish rule is now explicit in product behavior:
+  - image posts must fit one Telegram message with caption
+  - new plan-generated Telegram posts are created with illustration mode enabled
+  - backend additionally shortens generated Telegram drafts to a caption-safe size when needed
+  - publish errors must be shown in UI instead of crashing the page
 
 ## Product Direction
 
 - Это не массовый SaaS.
-- Это личный рабочий инструмент для владельца нескольких продуктов.
-- Главный приоритет: максимум автоматизации и минимум ручного контроля.
-- Ручное участие допустимо только как аварийное вмешательство.
-- Текущее рабочее имя проекта: `Content Autopilot`.
-- `Olympus` / `Athena` больше не использовать как бренд этого проекта, потому что это названия ресторанной системы.
+- Это личный AI-автопилот для управления контентом по своим продуктам и личному бренду.
+- Главный сценарий сейчас: личный блог `My PR` с упором на Telegram как основной канал.
+- Система должна быть понятной нетехническому пользователю и не требовать постоянной ручной модерации.
+
+## Audience And Positioning
+
+- Основная аудитория: предприниматели, владельцы малого бизнеса, частные практики, эксперты, консультанты и операционные специалисты.
+- Это люди, которые уже слышали про AI, но не хотят глубоко разбираться в инструментах, стеках и интеграциях.
+- Контент должен делать AI понятным, спокойным и прикладным, без пафоса и без техно-снобизма.
+- При этом контент не должен сводиться только к бизнесу и автоматизации. Нужны:
+  - practical
+  - educational
+  - news
+  - opinion
+  - critical
+
+## Current Content Rules
+
+- План должен уметь смешивать направления через проценты.
+- Быстрый кастомный пост должен уметь выбирать:
+  - тематику
+  - каналы из текущего проекта
+- Для `opinion` допустим более свободный, жизненный и философский угол, без скатывания в продуктовые советы.
+- Для Telegram нужен именно готовый пост, а не статья.
+- Иллюстрация должна быть компактной, а не огромной.
+
+## Current UX Direction
+
+- Дашборд должен быть максимально простым: только активные продукты.
+- На странице продукта:
+  - компактный блок каналов
+  - контент-планы под каналами
+  - стратегия продукта в сворачиваемом блоке
+- На странице плана:
+  - одна главная кнопка `Генерация`
+  - возможность быстро добавить свой пост
+  - минимум лишних статусов и лишних действий
+- В интерфейсе не должно быть дёргания карточек и прочих раздражающих hover-эффектов.
+
+## Automation Direction
+
+- Сейчас реализована генерация тем, быстрых постов, генерация текста и иллюстрации по item.
+- Следующий важный шаг: генерация материалов по всему плану одним действием, а не по одному item вручную.
+- Ещё один следующий шаг: режим автопостинга, где система сама:
+  - собирает темы
+  - генерирует материалы
+  - публикует их по плану
+- При этом пользователь всё равно должен иметь возможность удалять и редактировать материалы.
+
+## Planned But Not Implemented Yet
+
+- Оценка контент-плана через персонажей-аудиторов.
+- Идея: несколько проверяющих ролей из ЦА, например:
+  - домохозяйка / обычный нетехнический читатель
+  - предприниматель-фрилансер
+  - эксперт / частная практика
+  - владелец малого бизнеса
+- Они должны оценивать понятность и релевантность плана, а потом влиять на финальную сборку.
+- Это не текущая задача.
+- Внедрять этот слой нужно на этапе финальной отладки продукта, а не раньше.
 
 ## Technical Direction
 
-- Отдельный сервер под проект.
-- База: PostgreSQL.
-- Очереди: Redis + Celery.
-- Backend: FastAPI.
-- Frontend: Next.js.
-- Инфраструктура: Docker Compose.
-- Supabase и n8n не являются обязательной частью ядра проекта.
-- LLM layer должен быть сменным, а не привязанным к одному вендору.
-- Поддерживаемые LLM providers: `fallback`, `openrouter`, `openai`, `gemini`.
+- Backend: FastAPI
+- Frontend: Next.js
+- Database: PostgreSQL
+- Queue foundation: Redis
+- Infra: Docker Compose
+- Основное окружение сейчас не localhost, а сервер `content.flowsmart.ru`
+
+## Current Server Notes
+
+- Домен: `https://content.flowsmart.ru`
+- Серверный проект: `/opt/athena-content`
+- Контейнеры: `postgres`, `redis`, `api`, `web`
+- Production web работает через `next build && next start`
+- Во время пересборки `web` сайт временно отдаёт `502`, пока не завершится build
+- Для приложения используется отдельный пользователь БД `athena_app`, чтобы не упираться в дрейф пароля `postgres`
+
+## Latest Automation Update
+
+- Plan page now has `Собрать материалы`.
+- Item page now has manual Telegram publish through `Запостить`.
+- API now exposes:
+  - `POST /content-plans/{plan_id}/build-materials`
+  - `POST /content-plans/{plan_id}/items/{item_id}/generate`
+  - `GET /content-plans/{plan_id}/items/{item_id}/latest-job`
+  - `POST /content-plans/{plan_id}/items/{item_id}/publish`
+- The API startup now runs a lightweight in-process autopost loop.
+- Due items in status `review-ready` are published automatically to validated Telegram channels when the product has:
+  - `autopilot_enabled = true`
+  - `social_posting_enabled = true`
+- Scheduling uses:
+  - `publish_days`
+  - `publish_time_utc`
+- Generation now filters stale `channel_targets` through the product's real active channels so old `blog/vk` traces do not distort Telegram prompts.
 
 ## Important Constraints
 
-- Не смешивать проект с ресторанным репозиторием.
-- Работать внутри отдельного репозитория `Content-Autopilot-Codex`.
-- Не коммитить `.env` и локальные временные файлы.
-- Не трогать `master-ai`, если это не отдельная задача пользователя.
+- Работать только внутри `codex-workspace`
+- Не коммитить `.env` и локальные временные файлы
+- Не трогать `master-ai`, если это не отдельная задача пользователя
+## Session 2026-04-23
 
-## User Context
+- Added a real `/settings` page and `/api/settings/system`.
+- Fixed the settings 404.
+- Fixed API startup after upload support by adding `python-multipart`.
+- Fixed image upload crashes by raising Next server action body limit to `20mb`.
+- Added compact settings UI:
+  - provider
+  - provider keys
+  - text / image / video model selectors
+- Added OpenRouter text support in `llm_client.py`.
+- Unified model selection:
+  - `TEXT_MODEL`
+  - `IMAGE_MODEL`
+  - `VIDEO_MODEL`
+- Text now uses `LLM_PROVIDER + TEXT_MODEL`.
+- Images now use `LLM_PROVIDER + IMAGE_MODEL`.
+- Added OpenRouter image path in `media_generator.py`.
+- Added image model options for:
+  - `google/gemini-2.5-flash-image`
+  - `google/gemini-3.1-flash-image-preview`
+- Latest stop point:
+  - server code is ready for provider-based text/image routing
+  - live OpenRouter generation still needs a manual end-to-end test after saving settings in UI
 
-- Пользователь не позиционирует себя как программист.
-- Пользователю нужен результат и рабочий инструмент, а не сложная ручная настройка.
-- Систему нужно делать понятной и управляемой, но без обязательной ежедневной модерации.
+## Session 2026-04-24
 
-## Current Working Shape
-
-- У проекта уже есть рабочий backend lifecycle:
-  - bootstrap первого workspace;
-  - `ContentPlan` / `ContentPlanItem`;
-  - manual generation jobs;
-  - item detail endpoint;
-  - lifecycle transitions `planned -> draft -> review-ready -> ...`
-- У проекта уже есть рабочий web contour:
-  - dashboard;
-  - content plan page;
-  - content item page;
-  - operator actions для generation и status transitions.
-
-## Important Practical Notes
-
-- `apps/web` пока не проверялся через реальную сборку в этой среде, потому что локально не установлены зависимости Next.
-- В backend generation service сначала пытается использовать выбранный LLM provider, а при ошибке уходит в fallback вместо падения пайплайна.
-
+- Settings UI now autosaves:
+  - provider
+  - keys
+  - text / image / video model selectors
+- OpenRouter image regeneration is wired and working when production settings are actually set to:
+  - `LLM_PROVIDER=openrouter`
+  - `IMAGE_MODEL=google/gemini-3.1-flash-image-preview`
+- A browser cache issue made regenerated images look unchanged; image regeneration now uses a new media URL/version so the browser does not reuse the old file.
+- User image upload is supported on the item page and can replace generated illustrations.
+- Telegram publishing now forces bold titles and published a previously blocked scheduled post after shortening it to fit one image caption.
+- Plan page and item page were aggressively cleaned up for less helper text and less visual noise.
+- Important caution from this session:
+  - keep frontend edits point-sized
+  - do not broad-rewrite UTF-8-heavy UI files
+  - after UI edits, compare the diff and check the live route, because encoding regressions can slip in fast
+- Latest stop point:
+  - content plan page now uses a more compact calendar layout
+  - goal is calendar on the left, posts for selected day on the right
+  - editing publication date should stay inside the post page, not inside the plan page

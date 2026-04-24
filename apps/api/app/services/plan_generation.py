@@ -9,7 +9,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import BrandProfile, ContentPlan, ContentPlanItem, Product
+from app.schemas.content_plan import PLAN_DIRECTION_KEYS
 from app.services.llm_client import LLMClientError, generate_json
+
+DEFAULT_CONTENT_MIX: dict[str, int] = {
+    "practical": 40,
+    "educational": 25,
+    "news": 15,
+    "opinion": 10,
+    "critical": 10,
+}
+
+DIRECTION_LABELS: dict[str, str] = {
+    "practical": "practical",
+    "educational": "educational",
+    "news": "news",
+    "opinion": "opinion",
+    "critical": "critical",
+}
+
+DIRECTION_HINTS: dict[str, str] = {
+    "practical": "practical use cases, workflows, savings of time, reduction of chaos, concrete scenarios",
+    "educational": "simple explanation, AI basics, terminology, first principles, public education without jargon",
+    "news": "important AI updates, launches, releases, public developments explained in plain language",
+    "opinion": "author perspective, interpretation, thoughtful viewpoint, what matters and what does not",
+    "critical": "skeptical angle, hype check, limitations, risks, overpromises, what is overrated",
+}
 
 
 def _join_lines(values: list[str]) -> str:
@@ -18,46 +43,166 @@ def _join_lines(values: list[str]) -> str:
     return "\n".join(f"- {value}" for value in values)
 
 
-def _get_active_channel_platforms(product: Product) -> list[str]:
-    platforms: list[str] = []
+def _normalize_content_mix(raw_settings: dict[str, Any] | None) -> dict[str, int]:
+    if not isinstance(raw_settings, dict):
+        return dict(DEFAULT_CONTENT_MIX)
 
-    for channel in getattr(product, "channels", []) or []:
-        if not getattr(channel, "is_active", True):
-            continue
-        platform = (getattr(channel, "platform", "") or "").strip().lower()
-        if platform and platform not in platforms:
-            platforms.append(platform)
+    raw_mix = raw_settings.get("content_mix", raw_settings)
+    if not isinstance(raw_mix, dict):
+        return dict(DEFAULT_CONTENT_MIX)
 
-    for channel in (product.primary_channels or []):
-        platform = (channel or "").strip().lower()
-        if platform and platform not in platforms:
-            platforms.append(platform)
+    mix: dict[str, int] = {}
+    for key in PLAN_DIRECTION_KEYS:
+        raw_value = raw_mix.get(key, DEFAULT_CONTENT_MIX[key])
+        try:
+            mix[key] = max(0, min(100, int(raw_value)))
+        except (TypeError, ValueError):
+            mix[key] = DEFAULT_CONTENT_MIX[key]
 
-    return platforms
+    if sum(mix.values()) <= 0:
+        return dict(DEFAULT_CONTENT_MIX)
+
+    return mix
 
 
-def _build_channel_strategy_notes(product: Product) -> str:
-    platforms = _get_active_channel_platforms(product)
-    if not platforms:
-        return "No active channels specified. Use a balanced mix of practical text-first formats."
+def _allocate_direction_sequence(num_items: int, mix: dict[str, int]) -> list[str]:
+    active = {key: value for key, value in mix.items() if value > 0}
+    if not active:
+        active = dict(DEFAULT_CONTENT_MIX)
 
-    notes: list[str] = [
-        "Use the full set of active channels when choosing topics and formats.",
-        "Do not rotate channels mechanically from item to item.",
-        "Choose content ideas that stay strong as one core idea but can be adapted across the active channels.",
-        "When a channel implies visuals or video, it is valid to propose carousel, reel, short video, or visual explainer formats.",
+    total_weight = sum(active.values())
+    raw_counts = {key: (num_items * value) / total_weight for key, value in active.items()}
+    counts = {key: int(raw_counts[key]) for key in active}
+    remainder = num_items - sum(counts.values())
+
+    fractions = sorted(
+        active,
+        key=lambda key: (raw_counts[key] - counts[key], active[key]),
+        reverse=True,
+    )
+    for key in fractions[:remainder]:
+        counts[key] += 1
+
+    sequence: list[str] = []
+    remaining = counts.copy()
+    while len(sequence) < num_items:
+        ordered = sorted(
+            [key for key, value in remaining.items() if value > 0],
+            key=lambda key: (remaining[key], active[key]),
+            reverse=True,
+        )
+        if not ordered:
+            break
+        for key in ordered:
+            if remaining[key] <= 0:
+                continue
+            sequence.append(key)
+            remaining[key] -= 1
+            if len(sequence) == num_items:
+                break
+
+    return sequence
+
+
+def _build_mix_summary(mix: dict[str, int], num_items: int) -> str:
+    lines = []
+    for direction in _allocate_direction_sequence(num_items, mix):
+        lines.append(direction)
+    counts: dict[str, int] = {key: lines.count(key) for key in PLAN_DIRECTION_KEYS if key in lines}
+    if not counts:
+        counts = {key: 0 for key in PLAN_DIRECTION_KEYS}
+    return "\n".join(
+        f"- {key}: {mix[key]}% target, around {counts.get(key, 0)} items"
+        for key in PLAN_DIRECTION_KEYS
+        if mix.get(key, 0) > 0
+    )
+
+
+def _build_directional_fallback_item(
+    direction: str,
+    focus: str,
+    audience: str,
+    index: int,
+) -> dict[str, Any]:
+    practical = [
+        (
+            f"Где {focus} реально экономит время уже на первой неделе",
+            f"Показать через 3 простых сценария, как {focus} снижает рутину для аудитории: {audience}.",
+            "checklist",
+        ),
+        (
+            f"С чего начать {focus}, если в работе много хаоса",
+            "Дать спокойный и понятный вход без перегруза инструментами и техничностью.",
+            "guide",
+        ),
+    ]
+    educational = [
+        (
+            f"Что такое {focus} простыми словами и без перегруза",
+            "Объяснить тему человеческим языком для людей, которые знакомы с AI только поверхностно.",
+            "educational",
+        ),
+        (
+            f"Что люди чаще всего неправильно понимают про {focus}",
+            "Разобрать базовые заблуждения и снять тревогу вокруг AI.",
+            "educational",
+        ),
+    ]
+    news = [
+        (
+            f"Что нового происходит вокруг {focus} и почему это вообще важно",
+            "Взять новостной или обзорный угол и объяснить его простым языком без шума.",
+            "news",
+        ),
+        (
+            f"Какие AI-новости действительно стоит отслеживать, а какие нет",
+            "Показать читателю, как отличать важные сигналы от хайпа.",
+            "news",
+        ),
+    ]
+    opinion = [
+        (
+            f"Мой взгляд на {focus}: что здесь действительно важно",
+            "Дать зрелую позицию без пафоса и техно-восторга.",
+            "opinion",
+        ),
+        (
+            f"Почему разговор о {focus} часто уходит не туда",
+            "Показать авторское мнение и переупаковать тему в ясную рамку.",
+            "opinion",
+        ),
+    ]
+    critical = [
+        (
+            f"Где вокруг {focus} слишком много хайпа и слишком мало пользы",
+            "Критически разобрать завышенные ожидания и вернуть разговор в реальность.",
+            "critical",
+        ),
+        (
+            f"Почему не всё в {focus} стоит внедрять или повторять",
+            "Показать ограничения, риски и ложные ожидания без алармизма.",
+            "critical",
+        ),
     ]
 
-    if "telegram" in platforms:
-        notes.append("Keep a strong share of concise, practical, hook-driven topics suitable for Telegram posts.")
-    if "instagram" in platforms:
-        notes.append("Include topics that can naturally become carousels, reels, caption-led posts, or visual explainers.")
-    if "youtube" in platforms:
-        notes.append("Include topics with strong video angles, walkthroughs, demos, or talking-head explanations.")
-    if "blog" in platforms:
-        notes.append("Include some topics that justify longer structured articles or case studies.")
+    templates_by_direction = {
+        "practical": practical,
+        "educational": educational,
+        "news": news,
+        "opinion": opinion,
+        "critical": critical,
+    }
+    templates = templates_by_direction.get(direction, educational)
+    title, angle, article_type = templates[index % len(templates)]
 
-    return "\n".join(f"- {note}" for note in notes)
+    return {
+        "title": title,
+        "angle": angle,
+        "target_keywords": [focus, direction, "AI"],
+        "article_type": article_type,
+        "cta_type": "soft",
+        "content_direction": direction,
+    }
 
 
 def _build_fallback_plan_items(
@@ -67,84 +212,13 @@ def _build_fallback_plan_items(
     theme_override: str | None = None,
 ) -> list[dict[str, Any]]:
     focus = theme_override or plan.theme or product.value_proposition or product.short_description or product.name
-    audience = product.target_audience or "business owners and practitioners"
-    pillars = [pillar for pillar in product.content_pillars if pillar]
-    keywords = [keyword for keyword in (pillars[:2] or [product.name, "AI automation"]) if keyword]
-    platforms = _get_active_channel_platforms(product)
-    has_instagram = "instagram" in platforms
-    has_youtube = "youtube" in platforms
-    has_blog = "blog" in platforms
-
-    templates = [
-        {
-            "title": f"How {focus} removes manual busywork",
-            "angle": f"Show in plain language how {focus} reduces routine and chaos for {audience}.",
-            "article_type": "educational",
-        },
-        {
-            "title": f"5 real situations where {focus} already saves time",
-            "angle": "Use concrete scenarios with immediate practical value and no technical overload.",
-            "article_type": "listicle",
-        },
-        {
-            "title": f"Why people delay using {focus} even when they know it could help",
-            "angle": "Break down fear, delay, and perceived complexity that stop people from taking the first step.",
-            "article_type": "educational",
-        },
-        {
-            "title": f"How to tell whether {focus} is actually useful for your work",
-            "angle": "Give simple criteria so a non-technical person can recognize genuine value.",
-            "article_type": "checklist",
-        },
-        {
-            "title": f"What is hype around {focus}, and what really works",
-            "angle": "Compare empty promises with real workable scenarios.",
-            "article_type": "comparison",
-        },
-        {
-            "title": f"How to start using {focus} without getting lost in tools",
-            "angle": "Create a low-friction entry path for non-technical readers through simple next steps.",
-            "article_type": "guide",
-        },
-        {
-            "title": f"How {focus} helps experts, practitioners, and small business owners",
-            "angle": "Ground the idea in everyday work of specialists and small teams.",
-            "article_type": "educational",
-        },
-        {
-            "title": f"Which tasks should you give to {focus} first",
-            "angle": "Highlight tasks with fast payoff and clear visible results.",
-            "article_type": "checklist",
-        },
-    ]
+    audience = product.target_audience or "non-technical entrepreneurs and practitioners"
+    mix = _normalize_content_mix(getattr(plan, "settings_json", None))
+    directions = _allocate_direction_sequence(num_items, mix)
 
     items: list[dict[str, Any]] = []
-    for index in range(num_items):
-        template = templates[index % len(templates)]
-        article_type = template["article_type"]
-        asset_brief = ""
-
-        if has_youtube and index % 5 == 0:
-            article_type = "reel"
-            asset_brief = "Short vertical video with one example and one clear takeaway."
-        elif has_instagram and index % 4 == 0:
-            article_type = "carousel"
-            asset_brief = "Carousel with 5-7 slides and one practical point per slide."
-        elif has_blog and index % 6 == 0:
-            article_type = "article"
-
-        items.append(
-            {
-                "title": template["title"],
-                "angle": template["angle"],
-                "target_keywords": keywords,
-                "article_type": article_type,
-                "cta_type": "soft",
-                "channel_targets": platforms,
-                "asset_brief": asset_brief,
-            }
-        )
-
+    for index, direction in enumerate(directions):
+        items.append(_build_directional_fallback_item(direction, focus, audience, index))
     return items
 
 
@@ -163,14 +237,15 @@ def build_plan_generation_messages(
     )
     audience_notes = brand_profile.audience_notes if brand_profile else []
     core_messages = brand_profile.core_messages if brand_profile else []
-    active_channels = _get_active_channel_platforms(product)
-    channel_strategy_notes = _build_channel_strategy_notes(product)
+    mix = _normalize_content_mix(getattr(plan, "settings_json", None))
+    direction_targets = _build_mix_summary(mix, num_items)
+    direction_hints = "\n".join(f"- {key}: {DIRECTION_HINTS[key]}" for key in PLAN_DIRECTION_KEYS if mix.get(key, 0) > 0)
 
     system_prompt = f"""
 You are a senior content strategist for a personal content autopilot.
 Your job is to generate a list of {num_items} structured content plan items for a given month and theme.
-Focus on creating high-signal, practical, and engaging topics that align with the brand, product, and active channel set.
-Do not return generic or filler ideas. Make sure topics naturally progress throughout the month.
+Focus on creating high-signal, practical, understandable, varied topics that align with the brand and product.
+Do not collapse every topic into business automation. Keep a healthy mix of practical, educational, news, opinion and critical topics when requested.
 
 Return valid JSON with this exact shape:
 {{
@@ -179,10 +254,9 @@ Return valid JSON with this exact shape:
       "title": "string",
       "angle": "string",
       "target_keywords": ["string", "string"],
-      "article_type": "string (e.g. educational, checklist, comparison, carousel, reel, article)",
+      "article_type": "string (e.g. educational, checklist, comparison, news, opinion, critical)",
       "cta_type": "string (e.g. soft, hard, none)",
-      "channel_targets": ["telegram", "instagram"],
-      "asset_brief": "string"
+      "content_direction": "string (one of practical, educational, news, opinion, critical)"
     }}
   ]
 }}
@@ -218,16 +292,21 @@ Brand audience notes:
 Core messages:
 {_join_lines(core_messages)}
 
-Active channels:
-{_join_lines(active_channels)}
-
-Channel strategy notes:
-{channel_strategy_notes}
-
 Plan month: {plan.month}
 Plan theme: {theme_override or plan.theme or "General"}
+Requested content mix:
+{direction_targets}
 
-Please generate {num_items} distinct content plan items that fit this theme and reflect the current channel set.
+Direction guidance:
+{direction_hints}
+
+Requirements:
+- Generate {num_items} distinct items.
+- Follow the requested mix approximately.
+- At least some items should be broad educational or public-interest AI topics when educational/news/opinion/critical directions are enabled.
+- Explain AI in simple human language.
+- Avoid making every item about business efficiency.
+- Keep titles specific and easy to understand.
 """.strip()
 
     return [
@@ -246,7 +325,6 @@ async def generate_plan_items_for_plan(
         select(ContentPlan)
         .where(ContentPlan.id == plan_id)
         .options(selectinload(ContentPlan.product).selectinload(Product.content_settings))
-        .options(selectinload(ContentPlan.product).selectinload(Product.channels))
         .options(selectinload(ContentPlan.items))
     )
     plan = await session.scalar(plan_statement)
@@ -278,30 +356,32 @@ async def generate_plan_items_for_plan(
             theme_override=theme_override,
         )
 
-    starting_order = max([item.order for item in plan.items], default=0)
+    starting_order = max([item.order for item in plan.items], default=-1)
     new_items: list[ContentPlanItem] = []
 
-    for i, data in enumerate(items_data):
+    for index, data in enumerate(items_data):
         if not isinstance(data, dict):
             continue
 
         raw_keywords = data.get("target_keywords", [])
         target_keywords = raw_keywords if isinstance(raw_keywords, list) else []
-        raw_targets = data.get("channel_targets", [])
-        channel_targets = raw_targets if isinstance(raw_targets, list) else []
+        direction = str(data.get("content_direction") or "educational").lower().strip()
+        if direction not in PLAN_DIRECTION_KEYS:
+            direction = "educational"
 
         item = ContentPlanItem(
             plan_id=plan.id,
-            order=starting_order + i + 1,
-            title=str(data.get("title") or f"Generated Item {i + 1}"),
+            order=starting_order + index + 1,
+            title=str(data.get("title") or f"Generated Item {index + 1}"),
             angle=str(data.get("angle") or ""),
             target_keywords=[str(keyword) for keyword in target_keywords if keyword],
-            article_type=str(data.get("article_type") or "educational"),
+            article_type=str(data.get("article_type") or direction),
             cta_type=str(data.get("cta_type") or "soft"),
             status="planned",
             research_data={
-                "channel_targets": [str(target).strip().lower() for target in channel_targets if str(target).strip()],
-                "asset_brief": str(data.get("asset_brief") or ""),
+                "content_direction": direction,
+                "channel_targets": list(plan.product.primary_channels or []),
+                "include_illustration": True,
             },
         )
         session.add(item)
@@ -331,7 +411,6 @@ async def generate_rewrite_items_from_ingested(
         select(ContentPlan)
         .where(ContentPlan.id == plan_id)
         .options(selectinload(ContentPlan.product).selectinload(Product.content_settings))
-        .options(selectinload(ContentPlan.product).selectinload(Product.channels))
         .options(selectinload(ContentPlan.items))
     )
     plan = await session.scalar(plan_statement)
@@ -346,33 +425,28 @@ async def generate_rewrite_items_from_ingested(
     if not ingested_items:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No ingested content found for given IDs")
 
-    starting_order = max((item.order for item in plan.items), default=0)
+    starting_order = max((item.order for item in plan.items), default=-1)
     brand_profile = await session.scalar(select(BrandProfile).limit(1))
     brand_name = brand_profile.brand_name if brand_profile and brand_profile.brand_name else plan.product.name
-    channel_targets = _get_active_channel_platforms(plan.product)
 
     new_items: list[ContentPlanItem] = []
 
-    for i, ingested in enumerate(ingested_items):
+    for index, ingested in enumerate(ingested_items):
         angle = (
-            f"Rewrite and adapt this viral {ingested.platform} content for {brand_name}: "
+            f"Rewrite & adapt this viral {ingested.platform} content for {brand_name}: "
             f"\"{(ingested.text_content or '')[:300]}\" "
             f"(engagement score: {ingested.engagement_score:.0%})"
         )
         item = ContentPlanItem(
             plan_id=plan.id,
-            order=starting_order + i + 1,
-            title=f"[Rewrite] {ingested.platform.capitalize()} Viral Content #{i + 1}",
+            order=starting_order + index + 1,
+            title=f"[Rewrite] {ingested.platform.capitalize()} Viral Content #{index + 1}",
             angle=angle,
             target_keywords=[],
             article_type="rewrite",
             cta_type="soft",
             status="planned",
-            research_data={
-                "ingested_content_id": str(ingested.id),
-                "raw": ingested.raw_data,
-                "channel_targets": channel_targets,
-            },
+            research_data={"ingested_content_id": str(ingested.id), "raw": ingested.raw_data},
         )
         session.add(item)
         new_items.append(item)

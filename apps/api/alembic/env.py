@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.config import settings
 from app.db.base import Base
-from app.models import blog_post, brand_profile, content_plan, job_run, product, social_account
+from app.models import blog_post, brand_profile, content_plan, job_run, product, product_channel, social_account, system
 
 
 config = context.config

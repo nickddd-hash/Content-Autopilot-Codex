@@ -6,7 +6,6 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.schemas.common import ORMModel
-from app.schemas.monitoring import ChannelRead, MonitoringSourceRead
 
 
 class ProductContentSettingsRead(ORMModel):
@@ -25,6 +24,20 @@ class ProductContentSettingsRead(ORMModel):
     default_theme: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class ProductChannelRead(ORMModel):
+    id: UUID
+    platform: str
+    name: str
+    settings_json: dict
+    external_id: str | None
+    external_name: str | None
+    validation_status: str
+    validation_message: str | None
+    validated_at: datetime | None
+    is_active: bool
+    configured_secret_keys: list[str] = Field(default_factory=list)
 
 
 class ProductRead(ORMModel):
@@ -50,9 +63,8 @@ class ProductRead(ORMModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    channels: list[ProductChannelRead] = Field(default_factory=list)
     content_settings: ProductContentSettingsRead | None
-    channels: list[ChannelRead] = Field(default_factory=list)
-    monitoring_sources: list[MonitoringSourceRead] = Field(default_factory=list)
 
 
 class ProductContentSettingsPayload(BaseModel):
@@ -68,6 +80,19 @@ class ProductContentSettingsPayload(BaseModel):
     social_posting_enabled: bool = True
     carousel_enabled: bool = True
     default_theme: str | None = None
+
+
+class ProductChannelCreate(BaseModel):
+    platform: str = Field(min_length=2, max_length=50)
+    name: str | None = Field(default=None, max_length=255)
+    secrets: dict = Field(default_factory=dict)
+    settings: dict = Field(default_factory=dict)
+
+
+class ProductChannelUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=255)
+    secrets: dict | None = None
+    settings: dict | None = None
 
 
 class ProductCreate(BaseModel):

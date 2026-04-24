@@ -1,14 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
-export default function SidebarLink({ href, children, className = "" }: { href: string, children: React.ReactNode, className?: string }) {
+export default function SidebarLink({
+  href,
+  children,
+  className = "",
+}: {
+  href: string;
+  children: ReactNode;
+  className?: string;
+}) {
   const pathname = usePathname();
   const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
 
   return (
-    <Link href={href} className={`${className} ${isActive ? "active" : ""}`}>
+    <Link href={href} className={`${className} ${isActive ? "active" : ""}`.trim()}>
       {children}
     </Link>
   );

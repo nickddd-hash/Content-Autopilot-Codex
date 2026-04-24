@@ -5,8 +5,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-athena_content}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    ports:
-      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -17,10 +15,9 @@ services:
 
   redis:
     image: redis:7
-    ports:
-      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-redis}"]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:-redis} ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -30,8 +27,10 @@ services:
       context: ./apps/api
     env_file:
       - .env
+    volumes:
+      - media_data:/var/lib/athena-content/media
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,10 +43,11 @@ services:
     env_file:
       - .env
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - api
     command: sh -c "npm run build && npm run start"
 
 volumes:
   postgres_data:
+  media_data:

@@ -1,17 +1,6 @@
 import Link from "next/link";
 
-import { fetchJson, statusLabel } from "@/lib/api";
-
-type DashboardSummary = {
-  total_products: number;
-  active_products: number;
-  autopilot_enabled_products: number;
-  total_content_plans: number;
-  planned_items: number;
-  published_items: number;
-  failed_items: number;
-  running_jobs: number;
-};
+import { fetchJson } from "@/lib/api";
 
 type Product = {
   id: string;
@@ -19,57 +8,67 @@ type Product = {
   slug: string;
   category: string | null;
   lifecycle_stage: string | null;
+  short_description: string | null;
   is_active: boolean;
   primary_channels: string[];
+  content_settings?: {
+    autopilot_enabled?: boolean;
+    articles_per_month?: number;
+  } | null;
 };
 
-type BrandProfile = {
-  brand_name: string | null;
-  brand_summary: string | null;
-  core_messages: string[];
-  channel_strategy: Record<string, string>;
-} | null;
+function prettifyChannel(channel: string) {
+  const labels: Record<string, string> = {
+    blog: "Блог",
+    telegram: "Telegram",
+    instagram: "Instagram",
+    youtube: "YouTube",
+    vk: "VK",
+    linkedin: "LinkedIn",
+    x: "X",
+  };
 
-type ContentPlan = {
-  id: string;
-  month: string;
-  theme: string;
-  status: string;
-  items: Array<{ id: string; status: string; title: string }>;
-};
+  return labels[channel] || channel;
+}
 
-function getBadgeClass(status: string) {
-  const s = status.toLowerCase();
-  if (["published", "completed", "active"].includes(s)) return "badge badge-success";
-  if (["draft", "planned"].includes(s)) return "badge badge-outline";
-  if (["failed", "error"].includes(s)) return "badge badge-danger";
-  if (["running", "in_progress"].includes(s)) return "badge badge-warning";
-  return "badge badge-info";
+function prettifyCategory(category: string | null) {
+  if (!category) return "Без категории";
+
+  const labels: Record<string, string> = {
+    "personal-brand": "Личный бренд",
+    service: "Услуга",
+    product: "Продукт",
+    media: "Медиа",
+    education: "Обучение",
+  };
+
+  return labels[category] || category;
+}
+
+function prettifyLifecycleStage(stage: string | null) {
+  if (!stage) return "Стадия не указана";
+
+  const labels: Record<string, string> = {
+    draft: "Черновой этап",
+    active: "В работе",
+    launched: "Запущен",
+    growth: "Рост",
+    paused: "На паузе",
+  };
+
+  return labels[stage] || stage;
+}
+
+function formatPublishingPace(articlesPerMonth?: number) {
+  if (!articlesPerMonth) return "Частота публикаций не задана";
+  if (articlesPerMonth === 1) return "1 материал в месяц";
+  if (articlesPerMonth >= 2 && articlesPerMonth <= 4) return `${articlesPerMonth} материала в месяц`;
+  return `${articlesPerMonth} материалов в месяц`;
 }
 
 export default async function HomePage() {
-  const [summary, products, brandProfile, contentPlans] = await Promise.all([
-    fetchJson<DashboardSummary>("/dashboard/summary", {
-      total_products: 0,
-      active_products: 0,
-      autopilot_enabled_products: 0,
-      total_content_plans: 0,
-      planned_items: 0,
-      published_items: 0,
-      failed_items: 0,
-      running_jobs: 0,
-    }),
-    fetchJson<Product[]>("/products", []),
-    fetchJson<BrandProfile>("/brand-profile", null),
-    fetchJson<ContentPlan[]>("/content-plans", []),
-  ]);
-
-  const metrics = [
-    { label: "Продукты", value: summary.total_products, hint: `${summary.active_products} активных` },
-    { label: "Автопилот", value: summary.autopilot_enabled_products, hint: "проектов" },
-    { label: "Планы", value: summary.total_content_plans, hint: `${summary.planned_items} тем в работе` },
-    { label: "Задачи", value: summary.running_jobs, hint: `${summary.failed_items} с ошибкой` },
-  ];
+  const products = await fetchJson<Product[]>("/products", []);
+  const activeProducts = products.filter((product) => product.is_active);
 
   return (
     <>
@@ -77,7 +76,6 @@ export default async function HomePage() {
         <div>
           <p className="eyebrow">Athena Content OS</p>
           <h1>Дашборд</h1>
-          <p className="lead">Обзор бренда, продуктов и пайплайна генерации контента.</p>
         </div>
         <div style={{ display: "flex", gap: "12px" }}>
           <Link href="/settings" className="btn">
@@ -89,150 +87,50 @@ export default async function HomePage() {
         </div>
       </header>
 
-      <section className="stats-grid">
-        {metrics.map((metric) => (
-          <article key={metric.label} className="stat-card">
-            <span className="stat-label">{metric.label}</span>
-            <strong className="stat-value">{metric.value}</strong>
-            <p className="stat-hint">{metric.hint}</p>
-          </article>
-        ))}
-      </section>
+      <section className="product-tree">
+        {activeProducts.length > 0 ? (
+          activeProducts.map((product) => (
+            <Link key={product.id} href={`/products/${product.id}`} className="product-node">
+              <div className="product-node-top">
+                <span className="panel-kicker">Продукт</span>
+                <span className="badge badge-success">Активен</span>
+              </div>
 
-      <section className="panel-grid">
-        <article className="panel">
-          <div className="panel-header">
-            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-              <div style={{ background: "rgba(255,255,255,0.05)", padding: "10px", borderRadius: "12px" }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"></path>
-                </svg>
-              </div>
-              <div>
-                <span className="panel-kicker">Система</span>
-                <h2 className="panel-title">Активные продукты</h2>
-              </div>
-            </div>
-            <span className="badge badge-accent">{products.length} всего</span>
-          </div>
-          <div className="list-container">
-            {products.length > 0 ? (
-              products.map((product) => (
-                <div key={product.id} className="list-item">
-                  <div>
-                    <Link href={`/products/${product.id}`} className="list-item-title item-link" style={{ textDecoration: "none" }}>
-                      {product.name}
-                    </Link>
-                    <span className="list-item-sub">
-                      {product.category || "Общий"} · {product.lifecycle_stage || "Запуск"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className={getBadgeClass(product.is_active ? "active" : "failed")}>
-                      {product.is_active ? "Активен" : "Отключен"}
-                    </span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="empty-state">
-                <strong>Пока нет продуктов</strong>
-                <p>Добавьте первый продукт, чтобы запустить генерацию контента.</p>
-              </div>
-            )}
-          </div>
-        </article>
+              <h2 className="product-node-title">{product.name}</h2>
+              <p className="product-node-description">{product.short_description || "Без описания"}</p>
 
-        <article className="panel">
-          <div className="panel-header">
-            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-              <div style={{ background: "rgba(255,255,255,0.05)", padding: "10px", borderRadius: "12px" }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
-                </svg>
+              <div className="product-node-meta">
+                <span>{prettifyCategory(product.category)}</span>
+                <span>{prettifyLifecycleStage(product.lifecycle_stage)}</span>
+                <span>{product.content_settings?.autopilot_enabled ? "Автопилот включён" : "Автопилот выключен"}</span>
+                <span>{formatPublishingPace(product.content_settings?.articles_per_month)}</span>
               </div>
-              <div>
-                <span className="panel-kicker">Стратегия</span>
-                <h2 className="panel-title">Профиль бренда</h2>
+
+              <div className="product-node-channels">
+                {product.primary_channels.length > 0 ? (
+                  product.primary_channels.map((channel) => (
+                    <span key={channel} className="badge badge-outline">
+                      {prettifyChannel(channel)}
+                    </span>
+                  ))
+                ) : (
+                  <span className="badge badge-outline">Каналы не заданы</span>
+                )}
               </div>
-            </div>
-          </div>
-          {brandProfile ? (
-            <div className="key-value-stack">
-              <div className="kv-pair">
-                <span className="kv-label">Название бренда</span>
-                <span className="kv-val">{brandProfile.brand_name || "Без названия"}</span>
+
+              <div className="product-node-link">
+                <span>Открыть продукт</span>
+                <span aria-hidden="true">→</span>
               </div>
-              <div className="kv-pair">
-                <span className="kv-label">Описание</span>
-                <span className="kv-val">{brandProfile.brand_summary || "Описание пока не заполнено."}</span>
-              </div>
-              <div className="kv-pair">
-                <span className="kv-label">Ключевые сообщения</span>
-                <span className="kv-val">
-                  {brandProfile.core_messages.length > 0 ? brandProfile.core_messages.join(" • ") : "Пока не заданы."}
-                </span>
-              </div>
-            </div>
-          ) : (
+            </Link>
+          ))
+        ) : (
+          <article className="panel">
             <div className="empty-state">
-              <strong>Профиль бренда отсутствует</strong>
-              <p>Автопилоту нужен профиль бренда, чтобы понимать голос, стратегию и правила публикации.</p>
+              <strong>Активных продуктов пока нет</strong>
             </div>
-          )}
-        </article>
-
-        <article className="panel panel-wide">
-          <div className="panel-header">
-            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-              <div style={{ background: "rgba(255,255,255,0.05)", padding: "10px", borderRadius: "12px" }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                  <polyline points="10 9 9 9 8 9"></polyline>
-                </svg>
-              </div>
-              <div>
-                <span className="panel-kicker">Исполнение</span>
-                <h2 className="panel-title">Активные контент-планы</h2>
-              </div>
-            </div>
-          </div>
-          <div className="list-container">
-            {contentPlans.length > 0 ? (
-              contentPlans.map((plan) => (
-                <div key={plan.id} className="list-item">
-                  <div style={{ minWidth: "300px" }}>
-                    <span className="list-item-title">{plan.theme || "План без фиксированной темы"}</span>
-                    <span className="list-item-sub">{plan.month}</span>
-                  </div>
-                  <div style={{ flex: 1, display: "flex", gap: "10px", flexWrap: "wrap", margin: "0 20px" }}>
-                    {plan.items.slice(0, 3).map((item, i) => (
-                      <Link key={item.id} href={`/content-plans/${plan.id}/items/${item.id}`} className="badge badge-outline" style={{ textDecoration: "none" }}>
-                        {item.title || `Тема ${i + 1}`}
-                      </Link>
-                    ))}
-                    {plan.items.length > 3 && <span className="badge badge-accent">+{plan.items.length - 3} еще</span>}
-                  </div>
-                  <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                    <span className={getBadgeClass(plan.status)}>{statusLabel(plan.status)}</span>
-                    <Link href={`/content-plans/${plan.id}`} className="btn btn-sm">
-                      Открыть план
-                    </Link>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="empty-state">
-                <strong>Пока нет планов</strong>
-                <p>Создайте план на ближайший месяц, чтобы запустить workflow.</p>
-              </div>
-            )}
-          </div>
-        </article>
+          </article>
+        )}
       </section>
     </>
   );

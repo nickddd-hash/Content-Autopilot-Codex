@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import HelpHint from "@/components/HelpHint";
 import { patchJson } from "@/lib/api";
 
 type ProductContextFormProps = {
@@ -34,7 +35,7 @@ export default function ProductContextForm({
         tone_of_voice: toneOfVoice,
         target_audience: targetAudience,
       });
-      setMessage("Контекст сохранен.");
+      setMessage("Контекст сохранён.");
     } catch {
       setMessage("Не удалось сохранить контекст.");
     } finally {
@@ -45,16 +46,15 @@ export default function ProductContextForm({
   return (
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div className="form-group">
-        <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>Глубокий контекст</span>
+        <label className="form-label form-label-inline" style={{ display: "flex", justifyContent: "space-between" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+            <span>Глубокий контекст</span>
+            <HelpHint text="Базовая опора для генерации: позиционирование, польза, сценарии и ограничения продукта." />
+          </span>
           <span className="badge badge-info" style={{ fontWeight: "normal" }}>
             full_description
           </span>
         </label>
-        <p className="form-hint" style={{ marginBottom: "8px", fontSize: "13px", color: "var(--text-secondary)" }}>
-          Вставьте сюда основные выводы о продукте, экспертизе, позиционировании и пользе для аудитории. Этот контекст
-          будет использоваться перед генерацией тем и текстов.
-        </p>
         <textarea
           name="fullDescription"
           className="form-input"
@@ -67,10 +67,10 @@ export default function ProductContextForm({
 
       <div className="form-group" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
         <div>
-          <label className="form-label">Голос и тон</label>
-          <p className="form-hint" style={{ marginBottom: "8px", fontSize: "13px", color: "var(--text-secondary)" }}>
-            Как должен звучать контент? Например: спокойно, по-человечески, без хайпа и без гуру-интонации.
-          </p>
+          <label className="form-label form-label-inline">
+            Голос и тон
+            <HelpHint text="Как должен звучать контент: спокойно, полезно, по-человечески." />
+          </label>
           <textarea
             name="toneOfVoice"
             className="form-input"
@@ -82,10 +82,10 @@ export default function ProductContextForm({
         </div>
 
         <div>
-          <label className="form-label">Целевая аудитория</label>
-          <p className="form-hint" style={{ marginBottom: "8px", fontSize: "13px", color: "var(--text-secondary)" }}>
-            Для кого мы пишем этот контент?
-          </p>
+          <label className="form-label form-label-inline">
+            Целевая аудитория
+            <HelpHint text="Для кого пишем и какие реальные задачи у этих людей." />
+          </label>
           <textarea
             name="targetAudience"
             className="form-input"
@@ -98,7 +98,7 @@ export default function ProductContextForm({
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "12px", marginTop: "12px" }}>
-        {message && <span style={{ color: message.includes("сохранен") ? "var(--success)" : "var(--danger)" }}>{message}</span>}
+        {message ? <span style={{ color: message.includes("сохран") ? "var(--success)" : "var(--danger)" }}>{message}</span> : null}
         <button type="submit" className="btn btn-primary" style={{ padding: "0 32px" }} disabled={isSaving}>
           {isSaving ? "Сохраняем..." : "Сохранить контекст"}
         </button>

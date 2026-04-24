@@ -16,6 +16,10 @@ class JobRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     job_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     product_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), index=True)
+    content_plan_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("content_plans.id", ondelete="SET NULL"),
+        index=True,
+    )
     content_plan_item_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("content_plan_items.id", ondelete="SET NULL"),
         index=True,
@@ -26,6 +30,7 @@ class JobRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     meta_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
     product: Mapped["Product | None"] = relationship(back_populates="job_runs")
+    content_plan: Mapped["ContentPlan | None"] = relationship(back_populates="job_runs")
     content_plan_item: Mapped["ContentPlanItem | None"] = relationship(back_populates="job_runs")
 
 

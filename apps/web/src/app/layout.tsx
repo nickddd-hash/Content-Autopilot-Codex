@@ -1,8 +1,9 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { ReactNode } from "react";
-import Sidebar from "@/components/Sidebar";
+
 import Breadcrumbs from "@/components/Breadcrumbs";
+import Sidebar from "@/components/Sidebar";
 
 export const metadata: Metadata = {
   title: "Content Autopilot",
@@ -24,4 +25,3 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     </html>
   );
 }
-

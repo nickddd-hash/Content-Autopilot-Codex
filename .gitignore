@@ -4,11 +4,4 @@ node_modules
 __pycache__/
 *.pyc
 dist/
-venv/
-*.db
-*.egg-info/
-.venv/
-api-*.log
-web-*.log
-.logs/
-.tmp/
+

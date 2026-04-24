@@ -1,71 +1,126 @@
 # Project State
 
-## Latest Handoff
-
-The most recent practical handoff for local runtime, content-plan generation state, and the user's PR/blog positioning is recorded in `docs/SESSION_2026-04-19_CONTEXT.md`.
-The current deployment, restoration, and generation notes from today are recorded in `docs/SESSION_2026-04-20_CONTEXT.md`.
-
 ## Current Status
 
-Проект уже вынесен в отдельный репозиторий `Content-Autopilot-Codex` и больше не должен рассматриваться как вложенная рабочая область старой ресторанной системы.
+Проект живёт как отдельная рабочая область `codex-workspace` и используется на сервере `content.flowsmart.ru`.
 
-На текущий момент готовы:
+Сейчас в рабочем состоянии есть:
 
-- каркас backend на FastAPI;
-- каркас frontend на Next.js;
-- Docker Compose стек для `postgres`, `redis`, `api`, `web`;
-- базовые ORM-модели;
-- Alembic migrations;
-- API для:
-  - health;
-  - dashboard summary;
-  - products CRUD;
-  - brand profile.
-  - content plans;
-  - setup/bootstrap;
-  - job runs.
-- manual generation contour c provider-based LLM layer;
-- content item lifecycle transitions;
-- operator UI:
-  - dashboard;
-  - content plan page;
-  - content item page.
+- FastAPI backend
+- Next.js frontend
+- PostgreSQL
+- Redis
+- Docker Compose деплой
+- nginx + HTTPS на сервере
 
-## Server Status
+## What Works In Product Terms
 
-Сервер подготовлен и доступен по SSH-ключу.
+Additional working pieces:
 
-На сервере:
+- Background plan pipeline with latest job polling
+- Plan calendar grouped by day inside each content plan
+- Archive page with published and archived materials
+- Manual Telegram publish from the item page
+- Readable UI error for Telegram publish conflicts
 
-- настроен firewall;
-- активирован swap;
-- загружен проект в `/opt/athena-content`;
-- контейнеры успешно стартуют.
+- Дашборд с активными продуктами
+- Продукт `My PR`
+- Страница продукта с каналами, контент-планами и контекстом
+- Создание и удаление контент-планов
+- Генерация тем для плана
+- Настройка mix по направлениям
+- Быстрое создание кастомного поста
+- Генерация текста и иллюстрации по item
+- Редактирование поста на странице item
 
-## Verified Working
+## Current Plan Generation Model
 
-- `GET /`
-- `GET /api/health`
-- `GET /api/dashboard/summary`
-- `GET /api/products`
-- OpenAPI содержит `brand-profile`, `content-plans`, `setup`, `job-runs`
+План умеет смешивать типы контента:
 
-## Not Done Yet
+- practical
+- educational
+- news
+- opinion
+- critical
 
-- прогон bootstrap и generation flow на реально поднятом окружении;
-- реальная проверка web build/run после установки зависимостей;
-- полноценный review/editor UX поверх generated drafts;
-- генерация контент-плана как отдельный flow поверх существующего generation engine;
-- article pipeline после `review-ready`;
-- VK integration;
-- Celery workers and scheduler;
-- production reverse proxy and domain setup;
-- secrets and production env hardening.
+Эти доли задаются на уровне плана и учитываются при генерации тем.
 
-## 2026-04-20 Addendum
+## Current Quick Post Model
 
-- Public deployment is available at `https://content.flowsmart.ru`.
-- Server state now includes restored `My PR`, restored brand profile, restored provider settings, and a current content plan.
-- Draft generation works against OpenAI after timeout handling changes, but the current output format is still too article-like for Telegram-first usage.
-- Operator UX for content plans and generated draft review needs a substantial usability pass.
+Быстрый пост поддерживает:
 
+- ввод готового текста или тезисов
+- выбор тематики
+- выбор каналов из текущего проекта
+
+Если запускать генерацию через ИИ:
+
+- генерируется заголовок и текст
+- item сохраняется в план
+- учитываются выбранные тематика и каналы
+
+## Security State
+
+На `2026-04-22` сервер прошёл аварийную зачистку после подозрительной нагрузки внутри контейнера `postgres`.
+
+Сделано:
+
+- стек пересоздан
+- наружу больше не публикуются `postgres` и `redis`
+- `api` и `web` привязаны к `127.0.0.1`
+- внутренние пароли ротированы
+- серверное приложение переведено в production-режим
+
+Публичная поверхность сейчас должна быть сведена к:
+
+- `80`
+- `443`
+- `22`
+
+## Known Product Gaps
+
+- План пока в основном формирует темы, а не весь набор материалов автоматически
+- Нет одной кнопки, которая собирает все посты и визуалы по плану целиком
+- Автопостинг как полный рабочий контур ещё не реализован
+- Персонажи-проверяющие пока только идея, не код
+
+## Known Operational Notes
+
+- Во время `docker compose up -d --build web` домен может временно отдавать `502`
+- Это нормально, пока `next build` не завершится
+- После сборки `web` снова поднимается через `next start`
+- Внешние API-ключи провайдеров нужно будет ротировать отдельно вручную
+## Session 2026-04-23 Additions
+
+- System settings now have a real UI and API:
+  - `/settings`
+  - `/api/settings/system`
+- Upload support is stable after:
+  - adding `python-multipart`
+  - increasing Next server action body limit to `20mb`
+- Provider routing is now moving to shared settings:
+  - `LLM_PROVIDER`
+  - `TEXT_MODEL`
+  - `IMAGE_MODEL`
+  - `VIDEO_MODEL`
+- Text generation supports OpenRouter.
+- Image generation supports provider-based routing and now includes an OpenRouter path.
+- New OpenRouter image model options are present in settings UI.
+- Still required:
+  - confirm real OpenRouter text generation in production
+  - confirm real OpenRouter image regeneration in production
+
+## Session 2026-04-24 Additions
+
+- API settings now autosave on change/blur.
+- Production image regeneration has already been verified through OpenRouter after the provider/model were saved in settings.
+- Item page supports replacing generated illustrations with a user-uploaded image.
+- Telegram publish behavior now includes bold titles by default.
+- The content plan page is being simplified toward:
+  - compact calendar
+  - clearer selected-day list
+  - less inline editing noise
+- Main current product direction for the plan page:
+  - calendar on the left
+  - posts for selected day on the right
+  - date changes inside the post page, not inside the plan page
