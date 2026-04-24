@@ -8,6 +8,17 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $tempArchive = Join-Path $env:TEMP "athena-content-deploy.tar"
+$remoteSyncScript = @(
+  "set -e"
+  "mkdir -p $RemotePath /tmp/athena-content-deploy"
+  "rm -rf /tmp/athena-content-deploy/*"
+  "tar -xf /tmp/athena-content-deploy.tar -C /tmp/athena-content-deploy"
+  "if [ -f $RemotePath/.env ]; then cp $RemotePath/.env /tmp/athena-content.env.backup; fi"
+  "find $RemotePath -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} +"
+  "cp -a /tmp/athena-content-deploy/. $RemotePath/"
+  "if [ -f /tmp/athena-content.env.backup ]; then mv /tmp/athena-content.env.backup $RemotePath/.env; fi"
+  "rm -rf /tmp/athena-content-deploy /tmp/athena-content-deploy.tar"
+) -join "`n"
 
 function Invoke-NativeChecked {
   param(
@@ -53,17 +64,7 @@ Invoke-NativeChecked -Label "scp upload" -Command {
 }
 
 Invoke-NativeChecked -Label "remote sync" -Command {
-  ssh -i $KeyPath $HostName @"
-set -e
-mkdir -p $RemotePath /tmp/athena-content-deploy
-rm -rf /tmp/athena-content-deploy/*
-tar -xf /tmp/athena-content-deploy.tar -C /tmp/athena-content-deploy
-if [ -f $RemotePath/.env ]; then cp $RemotePath/.env /tmp/athena-content.env.backup; fi
-find $RemotePath -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} +
-cp -a /tmp/athena-content-deploy/. $RemotePath/
-if [ -f /tmp/athena-content.env.backup ]; then mv /tmp/athena-content.env.backup $RemotePath/.env; fi
-rm -rf /tmp/athena-content-deploy /tmp/athena-content-deploy.tar
-"@
+  $remoteSyncScript | ssh -i $KeyPath $HostName "bash -se"
 }
 
 Remove-Item $tempArchive -Force
