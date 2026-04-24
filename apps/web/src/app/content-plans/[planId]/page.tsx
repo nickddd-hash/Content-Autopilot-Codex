@@ -9,6 +9,8 @@ import PlanMixConfigurator from "./PlanMixConfigurator";
 import PlanJobPolling from "./PlanJobPolling";
 import QuickPostModal from "./QuickPostModal";
 
+export const dynamic = "force-dynamic";
+
 type ContentPlanItem = {
   id: string;
   order: number;
@@ -54,7 +56,7 @@ type PlanJob = {
   error_message?: string | null;
 };
 
-const CALENDAR_WEEKDAYS = ["РџРЅ", "Р’С‚", "РЎСЂ", "Р§С‚", "РџС‚", "РЎР±", "Р’СЃ"];
+const CALENDAR_WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 function buildDayKey(year: number, monthIndex: number, day: number) {
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -126,15 +128,15 @@ function getDominantDirection(
 
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
-    draft: "Р§РµСЂРЅРѕРІРёРє",
-    planned: "Р—Р°РїР»Р°РЅРёСЂРѕРІР°РЅРѕ",
-    "review-ready": "РџРѕСЃС‚ РіРѕС‚РѕРІ",
-    published: "РћРїСѓР±Р»РёРєРѕРІР°РЅРѕ",
-    failed: "РћС€РёР±РєР°",
-    active: "РђРєС‚РёРІРµРЅ",
-    running: "Р’ СЂР°Р±РѕС‚Рµ",
-    pending: "Р’ РѕС‡РµСЂРµРґРё",
-    completed: "Р—Р°РІРµСЂС€РµРЅРѕ",
+    draft: "Черновик",
+    planned: "Запланировано",
+    "review-ready": "Пост готов",
+    published: "Опубликовано",
+    failed: "Ошибка",
+    active: "Активен",
+    running: "В работе",
+    pending: "В очереди",
+    completed: "Завершено",
   };
 
   return labels[status] || status;
@@ -151,11 +153,11 @@ function getBadgeClass(status: string) {
 }
 
 function getStatusHintClean(status: string) {
-  if (status === "planned") return "РўРµРјР° СѓР¶Рµ РІ РїР»Р°РЅРµ. РњРѕР¶РЅРѕ СЃСЂР°Р·Сѓ СЃРѕР±СЂР°С‚СЊ РїРѕСЃС‚ Рё РёР»Р»СЋСЃС‚СЂР°С†РёСЋ.";
-  if (status === "draft") return "РњР°С‚РµСЂРёР°Р» СѓР¶Рµ СЃРѕР±СЂР°РЅ. РћС‚РєСЂРѕР№С‚Рµ РїРѕСЃС‚, РїРѕРїСЂР°РІСЊС‚Рµ С‚РµРєСЃС‚ РёР»Рё РїСѓР±Р»РёРєСѓР№С‚Рµ СЃСЂР°Р·Сѓ.";
-  if (status === "review-ready") return "РџРѕСЃС‚ РіРѕС‚РѕРІ Рє РїСѓР±Р»РёРєР°С†РёРё Рё Р¶РґС‘С‚ СЃРІРѕРµРіРѕ РІСЂРµРјРµРЅРё РІ РєР°Р»РµРЅРґР°СЂРµ.";
-  if (status === "published") return "РњР°С‚РµСЂРёР°Р» СѓР¶Рµ РѕРїСѓР±Р»РёРєРѕРІР°РЅ Рё РґРѕСЃС‚СѓРїРµРЅ РґР»СЏ РїСЂРѕСЃРјРѕС‚СЂР° РІ РёСЃС‚РѕСЂРёРё РїР»Р°РЅР°.";
-  return "РћС‚РєСЂРѕР№С‚Рµ РјР°С‚РµСЂРёР°Р», С‡С‚РѕР±С‹ РїРѕСЃРјРѕС‚СЂРµС‚СЊ Рё РѕС‚СЂРµРґР°РєС‚РёСЂРѕРІР°С‚СЊ РµРіРѕ.";
+  if (status === "planned") return "Тема уже в плане. Можно сразу собрать пост и иллюстрацию.";
+  if (status === "draft") return "Материал уже собран. Откройте пост, поправьте текст или публикуйте сразу.";
+  if (status === "review-ready") return "Пост готов к публикации и ждёт своего времени в календаре.";
+  if (status === "published") return "Материал уже опубликован и доступен для просмотра в истории плана.";
+  return "Откройте материал, чтобы посмотреть и отредактировать его.";
 }
 
 function shouldShowGenerateButton(status: string) {
@@ -267,8 +269,8 @@ export default async function ContentPlanPage({
     return (
       <header className="page-header">
         <div>
-          <h1>РџР»Р°РЅ РЅРµ РЅР°Р№РґРµРЅ</h1>
-          <p className="lead">РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РґР°РЅРЅС‹Рµ РєРѕРЅС‚РµРЅС‚-РїР»Р°РЅР°.</p>
+          <h1>План не найден</h1>
+          <p className="lead">Не удалось загрузить данные контент-плана.</p>
         </div>
       </header>
     );
@@ -313,11 +315,11 @@ export default async function ContentPlanPage({
     <>
       <header className="page-header">
         <div>
-          <p className="eyebrow">РљРѕРЅС‚РµРЅС‚-РїР»Р°РЅ: {plan.month}</p>
-          <h1>{plan.theme || "РџР»Р°РЅ Р±РµР· С„РёРєСЃРёСЂРѕРІР°РЅРЅРѕР№ С‚РµРјС‹"}</h1>
+          <p className="eyebrow">Контент-план: {plan.month}</p>
+          <h1>{plan.theme || "План без фиксированной темы"}</h1>
           <p className="lead" style={{ marginTop: "12px", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
             <span className={getBadgeClass(plan.status)}>{statusLabel(plan.status)}</span>
-            <span>РўРµРјС‹: {plan.items.length}</span>
+            <span>Темы: {plan.items.length}</span>
           </p>
         </div>
       </header>
@@ -328,11 +330,11 @@ export default async function ContentPlanPage({
         <article className="panel">
           <div className="panel-header" style={{ alignItems: "flex-start", gap: "20px" }}>
             <div style={{ flex: 1 }}>
-              <span className="panel-kicker">РџР»Р°РЅРёСЂРѕРІР°РЅРёРµ</span>
-              <h2 className="panel-title">Р“РµРЅРµСЂР°С†РёСЏ С‚РµРј</h2>
+              <span className="panel-kicker">Планирование</span>
+              <h2 className="panel-title">Генерация тем</h2>
               <p className="form-hint" style={{ marginTop: "10px" }}>
-                РњРѕР¶РЅРѕ РѕСЃС‚Р°РІРёС‚СЊ С‚РµРјСѓ РїСѓСЃС‚РѕР№, С‡С‚РѕР±С‹ СЃРёСЃС‚РµРјР° СЃР°РјР° СЃРѕР±СЂР°Р»Р° РёРґРµРё РїРѕ РєРѕРЅС‚РµРєСЃС‚Сѓ РїСЂРѕРґСѓРєС‚Р°. РР»Рё Р·Р°РґР°С‚СЊ СЃРїРµС†С‚РµРјСѓ Рё
-                С‚РѕС‡РЅРѕРµ РєРѕР»РёС‡РµСЃС‚РІРѕ РїРѕСЃС‚РѕРІ РґР»СЏ РѕС‚РґРµР»СЊРЅРѕРіРѕ Р±Р»РѕРєР°.
+                Можно оставить тему пустой, чтобы система сама собрала идеи по контексту продукта. Или задать спецтему и
+                точное количество постов для отдельного блока.
               </p>
             </div>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -340,21 +342,21 @@ export default async function ContentPlanPage({
               <QuickPostModal planId={plan.id} initialDirection={dominantDirection} channels={productChannels} />
               <form action={buildPlanMaterialsAction}>
                 <input type="hidden" name="planId" value={plan.id} />
-                <SubmitButton className="btn btn-primary" pendingLabel="РЎРѕР±РёСЂР°РµРј РјР°С‚РµСЂРёР°Р»С‹...">
-                  РЎРѕР±СЂР°С‚СЊ РјР°С‚РµСЂРёР°Р»С‹
+                <SubmitButton className="btn btn-primary" pendingLabel="Собираем материалы...">
+                  Собрать материалы
                 </SubmitButton>
               </form>
               <Link href={`/products/${plan.product_id}`} className="btn">
-                Рљ РїСЂРѕРґСѓРєС‚Сѓ
+                К продукту
               </Link>
               <Link href="/" className="btn">
-                РќР° РґР°С€Р±РѕСЂРґ
+                На дашборд
               </Link>
               <form action={deletePlanAction}>
                 <input type="hidden" name="planId" value={plan.id} />
                 <input type="hidden" name="productId" value={plan.product_id} />
-                <SubmitButton className="btn" style={{ borderColor: "var(--danger)", color: "var(--danger)" }} pendingLabel="РЈРґР°Р»СЏРµРј РїР»Р°РЅ...">
-                  РЈРґР°Р»РёС‚СЊ РїР»Р°РЅ
+                <SubmitButton className="btn" style={{ borderColor: "var(--danger)", color: "var(--danger)" }} pendingLabel="Удаляем план...">
+                  Удалить план
                 </SubmitButton>
               </form>
             </div>
@@ -363,21 +365,21 @@ export default async function ContentPlanPage({
           <form action={generatePlanItemsAction} style={{ display: "grid", gap: "16px", gridTemplateColumns: "1fr 180px auto" }}>
             <input type="hidden" name="planId" value={plan.id} />
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">РЎРїРµС†С‚РµРјР°</label>
+              <label className="form-label">Спецтема</label>
               <input
                 type="text"
                 name="themeOverride"
                 className="form-input"
-                placeholder="РќР°РїСЂРёРјРµСЂ: РёРґРµРё РґР»СЏ Telegram Рѕ РїСЂРѕСЃС‚РѕРј РІРЅРµРґСЂРµРЅРёРё AI"
+                placeholder="Например: идеи для Telegram о простом внедрении AI"
               />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">РЎРєРѕР»СЊРєРѕ РїРѕСЃС‚РѕРІ</label>
-              <input type="number" name="numItems" className="form-input" min={1} max={30} placeholder="РђРІС‚Рѕ" />
+              <label className="form-label">Сколько постов</label>
+              <input type="number" name="numItems" className="form-input" min={1} max={30} placeholder="Авто" />
             </div>
             <div style={{ display: "flex", alignItems: "end" }}>
-              <SubmitButton className="btn btn-primary" pendingLabel="Р“РµРЅРµСЂРёСЂСѓРµРј С‚РµРјС‹...">
-                РЎРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ С‚РµРјС‹
+              <SubmitButton className="btn btn-primary" pendingLabel="Генерируем темы...">
+                Сгенерировать темы
               </SubmitButton>
             </div>
           </form>
@@ -401,7 +403,7 @@ export default async function ContentPlanPage({
                 color: "var(--text)",
               }}
             >
-              РќРѕРІР°СЏ С‚РµРјР° РїРѕРґСЃРІРµС‡РµРЅР° РІ СЃРїРёСЃРєРµ РЅРёР¶Рµ.
+              Новая тема подсвечена в списке ниже.
             </div>
           ) : null}
         </article>
@@ -410,12 +412,12 @@ export default async function ContentPlanPage({
           <article className="panel" style={{ borderColor: "rgba(255, 196, 107, 0.45)", background: "rgba(255, 196, 107, 0.08)" }}>
             <div className="panel-header">
               <div>
-                <span className="panel-kicker">Р Р°СЃРїРёСЃР°РЅРёРµ С‚СЂРµР±СѓРµС‚ РїРµСЂРµСЃРјРѕС‚СЂР°</span>
-                <h2 className="panel-title">РћРґРёРЅ РёР· РїРѕСЃС‚РѕРІ СѓР¶Рµ РѕРїСѓР±Р»РёРєРѕРІР°РЅ РІСЂСѓС‡РЅСѓСЋ СЂР°РЅСЊС€Рµ СЃСЂРѕРєР°</h2>
+                <span className="panel-kicker">Расписание требует пересмотра</span>
+                <h2 className="panel-title">Один из постов уже опубликован вручную раньше срока</h2>
               </div>
             </div>
             <p className="form-hint" style={{ marginTop: "10px" }}>
-              РџРµСЂРµСЃРѕР±РµСЂРёС‚Рµ РјР°С‚РµСЂРёР°Р»С‹, С‡С‚РѕР±С‹ РєРѕРЅС‚РµРЅС‚-Р·Р°РІРѕРґ Р·Р°РЅРѕРІРѕ СЂР°Р·Р»РѕР¶РёР» РѕСЃС‚Р°РІС€РёРµСЃСЏ РїСѓР±Р»РёРєР°С†РёРё РїРѕ РєР°Р»РµРЅРґР°СЂСЋ.
+              Пересоберите материалы, чтобы контент-завод заново разложил оставшиеся публикации по календарю.
             </p>
           </article>
         ) : null}
@@ -423,8 +425,8 @@ export default async function ContentPlanPage({
         <article className="panel">
           <div className="panel-header">
             <div>
-              <span className="panel-kicker">РљР°Р»РµРЅРґР°СЂСЊ</span>
-              <h2 className="panel-title">РџР»Р°РЅ РїСѓР±Р»РёРєР°С†РёР№ РїРѕ РґРЅСЏРј</h2>
+              <span className="panel-kicker">Календарь</span>
+              <h2 className="panel-title">План публикаций по дням</h2>
             </div>
           </div>
           <div
@@ -503,7 +505,7 @@ export default async function ContentPlanPage({
                         >
                           <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>{cell.day}</span>
                           <span style={{ fontSize: "0.72rem", color: dayItems.length ? "var(--text)" : "var(--muted)" }}>
-                            {dayItems.length ? `${dayItems.length} РїРѕСЃС‚` : ""}
+                            {dayItems.length ? `${dayItems.length} пост` : ""}
                           </span>
                         </Link>
                       );
@@ -524,10 +526,10 @@ export default async function ContentPlanPage({
             >
               <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
                 <div>
-                  <div className="panel-kicker">Р’С‹Р±СЂР°РЅРЅС‹Р№ РґРµРЅСЊ</div>
+                  <div className="panel-kicker">Посты</div>
                   <h3 style={{ margin: "6px 0 0", fontSize: "1.05rem" }}>{formatDayLabel(selectedDay)}</h3>
                 </div>
-                <span className="badge badge-outline">{selectedDayItems.length} РІ РїР»Р°РЅРµ</span>
+                <span className="badge badge-outline">{selectedDayItems.length} в плане</span>
               </div>
 
               {selectedDayItems.length ? (
@@ -548,137 +550,10 @@ export default async function ContentPlanPage({
                 </div>
               ) : (
                 <div className="empty-state compact-empty-state">
-                  <strong>РќР° СЌС‚РѕС‚ РґРµРЅСЊ РїРѕСЃС‚РѕРІ РЅРµС‚</strong>
+                  <strong>На этот день постов нет</strong>
                 </div>
               )}
             </div>
-          </div>
-        </article>
-
-        <article className="panel">
-          <div className="panel-header">
-            <div>
-              <span className="panel-kicker">РњР°С‚РµСЂРёР°Р»С‹</span>
-              <h2 className="panel-title">РћС‡РµСЂРµРґСЊ РєРѕРЅС‚РµРЅС‚Р°</h2>
-            </div>
-          </div>
-
-          <div className="list-container">
-            {visibleItems.length > 0 ? (
-              visibleItems.map((item) => {
-                const isHighlighted = item.id === highlightId;
-
-                return (
-                  <div
-                    key={item.id}
-                    id={`item-${item.id}`}
-                    className="list-item"
-                    style={{
-                      alignItems: "flex-start",
-                      padding: "24px 0",
-                      borderLeft: isHighlighted ? "3px solid rgba(255, 210, 110, 0.85)" : undefined,
-                      paddingLeft: isHighlighted ? "16px" : undefined,
-                      background: isHighlighted ? "rgba(255, 210, 110, 0.05)" : undefined,
-                      borderRadius: isHighlighted ? "16px" : undefined,
-                      scrollMarginTop: "120px",
-                    }}
-                  >
-                    <div style={{ paddingRight: "40px", flex: 1 }}>
-                      <span className="list-item-sub" style={{ display: "block", marginBottom: "8px" }}>
-                        #{item.order + 1} В· {formatArticleType(item.article_type)}
-                      </span>
-                      <Link
-                        href={`/content-plans/${plan.id}/items/${item.id}`}
-                        className="list-item-title item-link"
-                        style={{ fontSize: "1.1rem", textDecoration: "none" }}
-                      >
-                        {item.title}
-                      </Link>
-                      <p style={{ color: "var(--muted)", margin: "8px 0", fontSize: "0.9rem", maxWidth: "800px" }}>
-                        {item.angle || "РЈРіРѕР» РїРѕРґР°С‡Рё РїРѕРєР° РЅРµ Р·Р°РґР°РЅ."}
-                      </p>
-                      <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
-                        {isHighlighted ? <span className="badge badge-warning">РќРѕРІРѕРµ</span> : null}
-                        {item.target_keywords.map((keyword) => (
-                          <span key={keyword} className="badge badge-outline" style={{ fontSize: "0.7rem" }}>
-                            {keyword}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "12px", minWidth: "250px" }}>
-                      {item.status === "review-ready" ? (
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "8px",
-                            padding: "8px 14px",
-                            borderRadius: "999px",
-                            background: "rgba(112, 214, 130, 0.12)",
-                            border: "1px solid rgba(112, 214, 130, 0.35)",
-                            color: "#86f09a",
-                            fontSize: "0.82rem",
-                            fontWeight: 600,
-                          }}
-                        >
-                          <span aria-hidden="true">вњ“</span>
-                          <span>РџРѕСЃС‚ РіРѕС‚РѕРІ</span>
-                        </span>
-                      ) : (
-                        <span className={getBadgeClass(item.status)}>{statusLabel(item.status)}</span>
-                      )}
-                      <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.85rem", textAlign: "right" }}>{getStatusHintClean(item.status)}</p>
-                      {item.scheduled_at ? (
-                        <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.8rem", textAlign: "right" }}>
-                          РџР»Р°РЅ: {new Date(item.scheduled_at).toLocaleString("ru-RU")}
-                        </p>
-                      ) : null}
-                      {item.published_at ? (
-                        <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.8rem", textAlign: "right" }}>
-                          РћРїСѓР±Р»РёРєРѕРІР°РЅРѕ: {new Date(item.published_at).toLocaleString("ru-RU")}
-                        </p>
-                      ) : null}
-                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                        {shouldShowGenerateButton(item.status) ? (
-                          <form action={generateItemBundleAction}>
-                            <input type="hidden" name="planId" value={plan?.id ?? ""} />
-                            <input type="hidden" name="itemId" value={item.id} />
-                            <SubmitButton
-                              className="btn btn-primary"
-                              pendingLabel={item.status === "draft" ? "РџРµСЂРµРіРµРЅРµСЂРёСЂСѓРµРј РїРѕСЃС‚ Рё РёР»Р»СЋСЃС‚СЂР°С†РёСЋ..." : "Р“РµРЅРµСЂРёСЂСѓРµРј РїРѕСЃС‚ Рё РёР»Р»СЋСЃС‚СЂР°С†РёСЋ..."}
-                            >
-                              Р“РµРЅРµСЂР°С†РёСЏ
-                            </SubmitButton>
-                          </form>
-                        ) : null}
-                        {false ? (
-                          <form action={moveStatusAction}>
-                            <input type="hidden" name="planId" value={plan?.id ?? ""} />
-                            <input type="hidden" name="itemId" value={item.id} />
-                            <input type="hidden" name="status" value="review-ready" />
-                            <SubmitButton className="btn" pendingLabel="РћС‚РјРµС‡Р°РµРј РїРѕСЃС‚ РєР°Рє РіРѕС‚РѕРІС‹Р№...">
-                              Р“РѕС‚РѕРІРѕ
-                            </SubmitButton>
-                          </form>
-                        ) : null}
-                        {item.status === "draft" || item.status === "review-ready" || item.status === "published" ? (
-                          <Link href={`/content-plans/${plan.id}/items/${item.id}`} className="btn">
-                            РћС‚РєСЂС‹С‚СЊ РїРѕСЃС‚
-                          </Link>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="empty-state">
-                <strong>Р’ РѕС‡РµСЂРµРґРё РїРѕРєР° РїСѓСЃС‚Рѕ</strong>
-                <p>РќР°Р¶РјРёС‚Рµ В«РЎРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ С‚РµРјС‹В», С‡С‚РѕР±С‹ СЃРѕР±СЂР°С‚СЊ РЅРѕРІС‹Р№ РїР»Р°РЅ Рё РїРѕС‚РѕРј РїРµСЂРµР№С‚Рё Рє РіРµРЅРµСЂР°С†РёРё РјР°С‚РµСЂРёР°Р»РѕРІ.</p>
-              </div>
-            )}
           </div>
         </article>
       </section>

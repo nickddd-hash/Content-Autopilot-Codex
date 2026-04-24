@@ -19,8 +19,14 @@ tar.exe `
   --exclude=".git" `
   --exclude=".env" `
   --exclude=".next" `
+  --exclude="*.log" `
+  --exclude="*.err.log" `
+  --exclude="*.db" `
+  --exclude="__pycache__" `
   --exclude="apps/web/node_modules" `
+  --exclude="apps/api/venv" `
   --exclude="apps/api/.venv" `
+  --exclude="apps/api/content_autopilot_api.egg-info" `
   --exclude=".logs" `
   --exclude=".tmp" `
   -cf $tempArchive `

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, time, timedelta, timezone
 from uuid import UUID
 
@@ -15,6 +16,17 @@ from app.services.generation import build_content_plan_item_detail, start_manual
 from app.services.media_generator import generate_illustration_for_item
 from app.services.plan_generation import generate_plan_items_for_plan
 from app.services.telegram_publisher import publish_item_to_telegram_channels
+
+logger = logging.getLogger(__name__)
+
+
+def _log_background_task_result(task: asyncio.Task) -> None:
+    try:
+        task.result()
+    except asyncio.CancelledError:
+        return
+    except Exception:
+        logger.exception("Plan pipeline background task crashed.")
 
 
 def _normalize_publish_days(raw_days: list[int] | None) -> set[int]:
@@ -196,6 +208,7 @@ async def _run_plan_pipeline_job(
             }
             await session.commit()
     except Exception as exc:
+        logger.exception("Plan pipeline job failed: job_id=%s plan_id=%s", job_id, plan_id)
         async with AsyncSessionLocal() as session:
             job = await session.get(JobRun, job_id)
             if job is None:
@@ -239,7 +252,7 @@ async def start_plan_pipeline_job(
     await session.commit()
     await session.refresh(job)
 
-    asyncio.create_task(
+    task = asyncio.create_task(
         _run_plan_pipeline_job(
             job_id=job.id,
             plan_id=plan.id,
@@ -248,6 +261,7 @@ async def start_plan_pipeline_job(
             num_items_override=num_items_override,
         )
     )
+    task.add_done_callback(_log_background_task_result)
     return job
 
 
@@ -318,9 +332,15 @@ async def process_due_autopost_items(session: AsyncSession) -> int:
         try:
             await publish_item_to_telegram_channels(session, plan, item, telegram_channels)
             published_count += 1
-        except HTTPException:
+        except HTTPException as exc:
             item.retry_count += 1
-            item.error_message = "Автопостинг не смог отправить материал в Telegram."
+            item.error_message = str(exc.detail or "Автопостинг не смог отправить материал в Telegram.")
+            logger.warning("Autopost failed for item %s: %s", item.id, item.error_message)
+            await session.commit()
+        except Exception as exc:
+            item.retry_count += 1
+            item.error_message = f"Автопостинг не смог отправить материал в Telegram: {exc}"
+            logger.exception("Unexpected autopost failure for item %s.", item.id)
             await session.commit()
 
     return published_count

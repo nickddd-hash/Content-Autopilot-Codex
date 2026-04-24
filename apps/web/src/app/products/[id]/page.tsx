@@ -9,6 +9,8 @@ import ProductChannelsPanel from "./ProductChannelsPanel";
 import ProductContextForm from "./ProductContextForm";
 import ProductPlanForm from "./ProductPlanForm";
 
+export const dynamic = "force-dynamic";
+
 type ProductPageProps = {
   params: Promise<{ id: string }>;
 };

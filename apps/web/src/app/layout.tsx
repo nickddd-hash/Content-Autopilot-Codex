@@ -10,6 +10,8 @@ export const metadata: Metadata = {
   description: "Personal AI marketing autopilot",
 };
 
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ru">

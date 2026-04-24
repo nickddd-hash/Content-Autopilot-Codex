@@ -4,6 +4,8 @@ import AutoSaveSettingsForm from "./AutoSaveSettingsForm";
 import HelpHint from "@/components/HelpHint";
 import { fetchJson, patchJson } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 type SystemSetting = {
   key: string;
   value: string | null;

@@ -64,13 +64,15 @@ def _sanitize_generation_payload(value: Any) -> Any:
 
 def _should_enforce_telegram_caption_limit(item: ContentPlanItem) -> bool:
     if not isinstance(item.research_data, dict):
-        return False
+        return True
 
     raw_channels = item.research_data.get("channel_targets")
     channels = [str(channel).strip().lower() for channel in raw_channels] if isinstance(raw_channels, list) else []
-    include_illustration = item.research_data.get("include_illustration")
+    include_illustration = item.research_data.get("include_illustration", True)
 
-    return "telegram" in channels and include_illustration is True
+    # Planned items default to Telegram posts with illustrations. Custom posts
+    # can opt out by setting include_illustration=False.
+    return (not channels or "telegram" in channels) and include_illustration is not False
 
 
 def _shorten_text_to_limit(text: str, limit: int) -> str:
@@ -102,7 +104,7 @@ def _shorten_text_to_limit(text: str, limit: int) -> str:
         if collected_sentences:
             return ". ".join(collected_sentences).strip().rstrip(".") + "."
 
-    return normalized[: max(0, limit - 1)].rstrip() + "…"
+    return normalized[: max(0, limit - 3)].rstrip() + "..."
 
 
 def _enforce_publishable_telegram_payload(item: ContentPlanItem, generation_payload: dict[str, Any]) -> dict[str, Any]:

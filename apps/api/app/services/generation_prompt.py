@@ -108,8 +108,10 @@ def build_generation_messages(
     anti_slop_rules = brand_profile.anti_slop_rules if brand_profile else []
     manual_brief = ""
     content_direction = ""
-    include_illustration = False
+    include_illustration = True
     available_channels = [str(channel).strip() for channel in product.primary_channels if str(channel).strip()]
+    if not available_channels:
+        available_channels = ["telegram"]
     selected_channels = list(available_channels)
     if isinstance(item.research_data, dict):
         raw_manual_brief = item.research_data.get("manual_brief")

@@ -6,6 +6,8 @@ import SubmitButton from "@/components/SubmitButton";
 import { apiBaseUrl, fetchJson, patchJson, postJson, statusLabel } from "@/lib/api";
 import JobPolling from "./JobPolling";
 
+export const dynamic = "force-dynamic";
+
 type ChannelAdaptation = {
   format?: string;
   content_markdown?: string;

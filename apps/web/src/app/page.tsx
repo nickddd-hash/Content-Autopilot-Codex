@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { fetchJson } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 type Product = {
   id: string;
   name: string;

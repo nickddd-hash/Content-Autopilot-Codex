@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -10,6 +11,7 @@ from app.db.bootstrap import create_database_tables
 from app.db.session import AsyncSessionLocal, engine
 from app.services.plan_execution import process_due_autopost_items
 
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title=settings.app_name,
@@ -31,8 +33,7 @@ async def _autopost_loop() -> None:
             async with AsyncSessionLocal() as session:
                 await process_due_autopost_items(session)
         except Exception:
-            # Keep the scheduler alive even if one iteration fails.
-            pass
+            logger.exception("Autopost scheduler iteration failed.")
         await asyncio.sleep(60)
 
 

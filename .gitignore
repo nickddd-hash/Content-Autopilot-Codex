@@ -4,4 +4,10 @@ node_modules
 __pycache__/
 *.pyc
 dist/
+*.log
+*.err.log
+*.db
+venv/
+.venv/
+*.egg-info/
 

@@ -380,7 +380,7 @@ async def generate_plan_items_for_plan(
             status="planned",
             research_data={
                 "content_direction": direction,
-                "channel_targets": list(plan.product.primary_channels or []),
+                "channel_targets": list(plan.product.primary_channels or ["telegram"]),
                 "include_illustration": True,
             },
         )
@@ -446,7 +446,12 @@ async def generate_rewrite_items_from_ingested(
             article_type="rewrite",
             cta_type="soft",
             status="planned",
-            research_data={"ingested_content_id": str(ingested.id), "raw": ingested.raw_data},
+            research_data={
+                "ingested_content_id": str(ingested.id),
+                "raw": ingested.raw_data,
+                "channel_targets": list(plan.product.primary_channels or ["telegram"]),
+                "include_illustration": True,
+            },
         )
         session.add(item)
         new_items.append(item)
