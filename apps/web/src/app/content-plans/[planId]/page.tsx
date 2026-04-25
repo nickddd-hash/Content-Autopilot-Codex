@@ -22,6 +22,7 @@ type ContentPlanItem = {
   target_keywords: string[];
   scheduled_at?: string | null;
   published_at?: string | null;
+  research_data?: Record<string, unknown>;
 };
 
 type ContentPlan = {
@@ -57,6 +58,33 @@ type PlanJob = {
 };
 
 const CALENDAR_WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const DEFAULT_CHANNELS = ["telegram"];
+const CHANNEL_LABELS: Record<string, string> = {
+  telegram: "TG",
+  instagram: "IG",
+  vk: "VK",
+  youtube: "YT",
+  blog: "BLOG",
+  linkedin: "IN",
+  x: "X",
+  tiktok: "TT",
+  facebook: "FB",
+  website: "WEB",
+  email: "MAIL",
+};
+const CHANNEL_TITLES: Record<string, string> = {
+  telegram: "Telegram",
+  instagram: "Instagram",
+  vk: "VK",
+  youtube: "YouTube",
+  blog: "Blog",
+  linkedin: "LinkedIn",
+  x: "X",
+  tiktok: "TikTok",
+  facebook: "Facebook",
+  website: "Website",
+  email: "Email",
+};
 
 function buildDayKey(year: number, monthIndex: number, day: number) {
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -110,6 +138,43 @@ function formatScheduledLabel(value?: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function normalizeChannel(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (["tg", "telegram"].includes(normalized)) return "telegram";
+  if (["insta", "instagram", "reels"].includes(normalized)) return "instagram";
+  if (["yt", "youtube", "shorts"].includes(normalized)) return "youtube";
+  return normalized;
+}
+
+function getItemChannels(item: ContentPlanItem, productChannels: string[]) {
+  const rawTargets = item.research_data?.channel_targets;
+  const itemChannels = Array.isArray(rawTargets)
+    ? rawTargets.map((channel) => normalizeChannel(String(channel))).filter(Boolean)
+    : [];
+  const fallbackChannels = productChannels.map((channel) => normalizeChannel(channel)).filter(Boolean);
+  return [...new Set(itemChannels.length ? itemChannels : fallbackChannels.length ? fallbackChannels : DEFAULT_CHANNELS)];
+}
+
+function getDayChannels(items: ContentPlanItem[], productChannels: string[]) {
+  return [...new Set(items.flatMap((item) => getItemChannels(item, productChannels)))];
+}
+
+function channelLabel(channel: string) {
+  return CHANNEL_LABELS[channel] || channel.slice(0, 4).toUpperCase();
+}
+
+function channelTitle(channel: string) {
+  return CHANNEL_TITLES[channel] || channel;
+}
+
+function sortPlanItems(left: ContentPlanItem, right: ContentPlanItem) {
+  const leftDate = left.scheduled_at ? String(left.scheduled_at) : "9999";
+  const rightDate = right.scheduled_at ? String(right.scheduled_at) : "9999";
+  const dateCompare = leftDate.localeCompare(rightDate);
+  if (dateCompare !== 0) return dateCompare;
+  return left.order - right.order;
 }
 
 function getDominantDirection(
@@ -304,12 +369,9 @@ export default async function ContentPlanPage({
     buildMonthCalendarFromParts(currentMonthDate.getUTCFullYear(), currentMonthDate.getUTCMonth()),
     buildMonthCalendarFromParts(nextMonthDate.getUTCFullYear(), nextMonthDate.getUTCMonth()),
   ];
-  const todayKey = buildDayKey(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-  const availableDayKeys = [...scheduledItemsByDay.keys()].sort();
-  const selectedDay =
-    day ||
-    (scheduledItemsByDay.has(todayKey) ? todayKey : availableDayKeys[0] ?? todayKey);
+  const selectedDay = day || null;
   const selectedDayItems = selectedDay ? scheduledItemsByDay.get(selectedDay) ?? [] : [];
+  const rightPanelItems = [...(selectedDay ? selectedDayItems : visibleItems)].sort(sortPlanItems);
 
   return (
     <>
@@ -479,6 +541,7 @@ export default async function ContentPlanPage({
                       }
 
                       const dayItems = scheduledItemsByDay.get(cell.key) ?? [];
+                      const dayChannels = getDayChannels(dayItems, productChannels);
                       const isSelected = cell.key === selectedDay;
                       const isPastInCurrentMonth =
                         calendar.year === currentMonthDate.getUTCFullYear() &&
@@ -490,7 +553,7 @@ export default async function ContentPlanPage({
                           key={cell.key}
                           href={`/content-plans/${plan.id}?day=${cell.key}`}
                           style={{
-                            minHeight: "54px",
+                            minHeight: "58px",
                             padding: "8px 6px",
                             borderRadius: "12px",
                             border: isSelected ? "1px solid rgba(176, 191, 119, 0.7)" : "1px solid var(--border)",
@@ -504,8 +567,33 @@ export default async function ContentPlanPage({
                           }}
                         >
                           <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>{cell.day}</span>
-                          <span style={{ fontSize: "0.72rem", color: dayItems.length ? "var(--text)" : "var(--muted)" }}>
-                            {dayItems.length ? `${dayItems.length} пост` : ""}
+                          <span style={{ display: "flex", gap: "3px", flexWrap: "wrap", minHeight: "18px" }}>
+                            {dayChannels.slice(0, 4).map((channel) => (
+                              <span
+                                key={`${cell.key}-${channel}`}
+                                title={channelTitle(channel)}
+                                aria-label={channelTitle(channel)}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  minWidth: "18px",
+                                  height: "18px",
+                                  padding: "0 4px",
+                                  borderRadius: "999px",
+                                  background: "rgba(216, 232, 168, 0.72)",
+                                  color: "#33411a",
+                                  fontSize: "0.58rem",
+                                  fontWeight: 800,
+                                  lineHeight: 1,
+                                }}
+                              >
+                                {channelLabel(channel)}
+                              </span>
+                            ))}
+                            {dayChannels.length > 4 ? (
+                              <span style={{ fontSize: "0.68rem", color: "var(--muted)", fontWeight: 700 }}>+{dayChannels.length - 4}</span>
+                            ) : null}
                           </span>
                         </Link>
                       );
@@ -526,31 +614,49 @@ export default async function ContentPlanPage({
             >
               <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
                 <div>
-                  <div className="panel-kicker">Посты</div>
-                  <h3 style={{ margin: "6px 0 0", fontSize: "1.05rem" }}>{formatDayLabel(selectedDay)}</h3>
+                  <div className="panel-kicker">{selectedDay ? "Посты на дату" : "Полный контент-план"}</div>
+                  <h3 style={{ margin: "6px 0 0", fontSize: "1.05rem" }}>
+                    {selectedDay ? formatDayLabel(selectedDay) : "Все посты плана"}
+                  </h3>
                 </div>
-                <span className="badge badge-outline">{selectedDayItems.length} в плане</span>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                  {selectedDay ? (
+                    <Link href={`/content-plans/${plan.id}`} className="btn btn-sm">
+                      Назад
+                    </Link>
+                  ) : null}
+                  <span className="badge badge-outline">{rightPanelItems.length} в плане</span>
+                </div>
               </div>
 
-              {selectedDayItems.length ? (
+              {rightPanelItems.length ? (
                 <div className="list-container">
-                  {selectedDayItems
-                    .sort((left, right) => String(left.scheduled_at).localeCompare(String(right.scheduled_at)))
-                    .map((item) => (
+                  {rightPanelItems.map((item) => {
+                    const itemChannels = getItemChannels(item, productChannels);
+
+                    return (
                       <div key={item.id} className="list-item compact-list-item">
                         <div style={{ minWidth: 0 }}>
-                          <div className="list-item-sub">{formatScheduledLabel(item.scheduled_at)}</div>
+                          <div className="list-item-sub">{item.scheduled_at ? formatScheduledLabel(item.scheduled_at) : "Без даты"}</div>
                           <Link href={`/content-plans/${plan.id}/items/${item.id}`} className="list-item-title item-link" style={{ textDecoration: "none" }}>
                             {item.title}
                           </Link>
+                          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" }}>
+                            {itemChannels.map((channel) => (
+                              <span key={`${item.id}-${channel}`} className="badge badge-outline" style={{ padding: "5px 8px", fontSize: "0.68rem" }}>
+                                {channelLabel(channel)}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                         <span className={getBadgeClass(item.status)}>{statusLabel(item.status)}</span>
                       </div>
-                    ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="empty-state compact-empty-state">
-                  <strong>На этот день постов нет</strong>
+                  <strong>{selectedDay ? "На этот день постов нет" : "В плане пока нет постов"}</strong>
                 </div>
               )}
             </div>
