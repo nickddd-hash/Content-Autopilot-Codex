@@ -322,6 +322,33 @@ async def cancel_plan_pipeline_job(session: AsyncSession, plan_id: UUID) -> JobR
     return job
 
 
+def _shift_future_schedule_after_manual_publish(
+    plan: ContentPlan,
+    published_item: ContentPlanItem,
+    vacated_slot: datetime | None,
+) -> None:
+    if vacated_slot is None:
+        return
+
+    future_items = sorted(
+        [
+            item
+            for item in plan.items
+            if item.id != published_item.id
+            and item.status != "archived"
+            and item.published_at is None
+            and item.scheduled_at is not None
+            and item.scheduled_at > vacated_slot
+        ],
+        key=lambda item: (item.scheduled_at, item.order),
+    )
+    next_slot = vacated_slot
+    for future_item in future_items:
+        current_slot = future_item.scheduled_at
+        future_item.scheduled_at = next_slot
+        next_slot = current_slot
+
+
 async def publish_plan_item_now(session: AsyncSession, plan_id: UUID, item_id: UUID) -> dict:
     plan = await _get_plan_with_product(session, plan_id)
     item = next((current for current in plan.items if current.id == item_id), None)
@@ -342,14 +369,19 @@ async def publish_plan_item_now(session: AsyncSession, plan_id: UUID, item_id: U
         telegram_channels = [channel for channel in telegram_channels if channel.platform in selected_channels]
 
     now = datetime.now(timezone.utc)
-    if item.scheduled_at and item.scheduled_at > now:
-        plan_settings = dict(plan.settings_json or {})
-        plan_settings["needs_reschedule"] = True
-        plan_settings["reschedule_reason"] = "published_early"
-        plan_settings["reschedule_source_item_id"] = str(item.id)
-        plan.settings_json = plan_settings
+    vacated_slot = item.scheduled_at if item.scheduled_at and item.scheduled_at > now else None
+    item.scheduled_at = now
 
     item = await publish_item_to_telegram_channels(session, plan, item, telegram_channels)
+    _shift_future_schedule_after_manual_publish(plan, item, vacated_slot)
+    if vacated_slot is not None:
+        plan_settings = dict(plan.settings_json or {})
+        plan_settings["needs_reschedule"] = False
+        plan_settings["reschedule_reason"] = None
+        plan_settings["reschedule_source_item_id"] = None
+        plan.settings_json = plan_settings
+        await session.commit()
+        await session.refresh(item)
     return build_content_plan_item_detail(item)
 
 
