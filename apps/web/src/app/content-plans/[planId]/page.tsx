@@ -7,6 +7,7 @@ import { deleteJson, fetchJson, postJson } from "@/lib/api";
 
 import PlanMixConfigurator from "./PlanMixConfigurator";
 import PlanJobPolling from "./PlanJobPolling";
+import PlanGenerationControls from "./PlanGenerationControls";
 import QuickPostModal from "./QuickPostModal";
 
 export const dynamic = "force-dynamic";
@@ -202,6 +203,7 @@ function statusLabel(status: string) {
     running: "В работе",
     pending: "В очереди",
     completed: "Завершено",
+    cancelled: "Остановлено",
   };
 
   return labels[status] || status;
@@ -210,7 +212,7 @@ function statusLabel(status: string) {
 function getBadgeClass(status: string) {
   const normalized = status.toLowerCase();
   if (["published", "completed"].includes(normalized)) return "badge badge-success";
-  if (["draft", "planned"].includes(normalized)) return "badge badge-outline";
+  if (["draft", "planned", "cancelled"].includes(normalized)) return "badge badge-outline";
   if (["failed", "error"].includes(normalized)) return "badge badge-danger";
   if (["running", "in_progress"].includes(normalized)) return "badge badge-warning";
   if (["review-ready"].includes(normalized)) return "badge badge-info";
@@ -344,6 +346,7 @@ export default async function ContentPlanPage({
   const highlightId = highlight || "";
   const product = await fetchJson<ProductSummary | null>(`/products/${plan.product_id}`, null);
   const latestJob = await fetchJson<PlanJob | null>(`/content-plans/${plan.id}/latest-job`, null);
+  const isJobActive = latestJob?.status === "running" || latestJob?.status === "pending";
   const productChannels = product?.primary_channels ?? [];
   const contentMix = {
     practical: plan.settings_json?.content_mix?.practical ?? 40,
@@ -393,21 +396,14 @@ export default async function ContentPlanPage({
           <div className="panel-header" style={{ alignItems: "flex-start", gap: "20px" }}>
             <div style={{ flex: 1 }}>
               <span className="panel-kicker">Планирование</span>
-              <h2 className="panel-title">Генерация тем</h2>
+              <h2 className="panel-title">Настройки контент-плана</h2>
               <p className="form-hint" style={{ marginTop: "10px" }}>
-                Можно оставить тему пустой, чтобы система сама собрала идеи по контексту продукта. Или задать спецтему и
-                точное количество постов для отдельного блока.
+                Сначала настройте месяц, тему и объем. Генерация начнется только после двойного подтверждения.
               </p>
             </div>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "flex-end" }}>
               <PlanMixConfigurator planId={plan.id} initialMix={contentMix} />
               <QuickPostModal planId={plan.id} initialDirection={dominantDirection} channels={productChannels} />
-              <form action={buildPlanMaterialsAction}>
-                <input type="hidden" name="planId" value={plan.id} />
-                <SubmitButton className="btn btn-primary" pendingLabel="Собираем материалы...">
-                  Собрать материалы
-                </SubmitButton>
-              </form>
               <Link href={`/products/${plan.product_id}`} className="btn">
                 К продукту
               </Link>
@@ -424,27 +420,12 @@ export default async function ContentPlanPage({
             </div>
           </div>
 
-          <form action={generatePlanItemsAction} style={{ display: "grid", gap: "16px", gridTemplateColumns: "1fr 180px auto" }}>
-            <input type="hidden" name="planId" value={plan.id} />
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Спецтема</label>
-              <input
-                type="text"
-                name="themeOverride"
-                className="form-input"
-                placeholder="Например: идеи для Telegram о простом внедрении AI"
-              />
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Сколько постов</label>
-              <input type="number" name="numItems" className="form-input" min={1} max={30} placeholder="Авто" />
-            </div>
-            <div style={{ display: "flex", alignItems: "end" }}>
-              <SubmitButton className="btn btn-primary" pendingLabel="Генерируем темы...">
-                Сгенерировать темы
-              </SubmitButton>
-            </div>
-          </form>
+          <PlanGenerationControls
+            planId={plan.id}
+            initialMonth={plan.month}
+            initialTheme={plan.theme}
+            isJobActive={isJobActive}
+          />
 
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "16px" }}>
             <span className="badge badge-outline">Practical {contentMix.practical}%</span>

@@ -30,6 +30,7 @@ from app.services.generation import build_content_plan_item_detail, start_manual
 from app.services.media_generator import generate_illustration_for_item, save_uploaded_illustration_for_item
 from app.services.plan_execution import (
     build_plan_materials,
+    cancel_plan_pipeline_job,
     get_latest_item_job,
     get_latest_plan_job,
     publish_plan_item_now,
@@ -440,6 +441,14 @@ async def run_content_plan_pipeline(
         theme_override=options.theme,
         num_items_override=options.num_items,
     )
+
+
+@router.post("/{plan_id}/cancel-pipeline", response_model=JobRunRead)
+async def cancel_content_plan_pipeline(
+    plan_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+) -> JobRunRead:
+    return await cancel_plan_pipeline_job(session, plan_id)
 
 
 @router.post("/{plan_id}/generate-items", response_model=list[ContentPlanItemRead])
