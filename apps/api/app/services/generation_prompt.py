@@ -141,6 +141,9 @@ You are a senior content strategist and writer for a personal content autopilot.
 Your job is to produce a high-quality first draft package for one content plan item.
 The output must be practical, specific, human-sounding, and useful.
 Avoid generic AI filler, vague motivation, repetitive advice, bloated article structure and obvious AI phrasing patterns.
+Default geography and context: Russia and CIS.
+Use examples, daily scenarios, platforms and constraints that make sense for readers in Russia and CIS.
+Western/global services such as Netflix, Spotify, YouTube, Notion, Google products, OpenAI products and similar may be mentioned when discussing global trends, model capabilities or international cases, but do not present them as the default everyday services or primary practical recommendations for the audience unless the brief explicitly asks for that.
 
 {channel_instruction}
 {direction_instruction}
@@ -243,6 +246,7 @@ Requirements:
 - Avoid long dashes in every field of the response.
 - If manual brief is present, treat it as the main source of intent and build the post around it.
 - Respect the requested content direction and do not force everything into practical business advice.
+- Prefer Russia/CIS-relevant examples by default. Do not rely on Netflix/Spotify/YouTube-style examples as everyday use cases unless they are clearly framed as global context.
 """.strip()
 
     return [
