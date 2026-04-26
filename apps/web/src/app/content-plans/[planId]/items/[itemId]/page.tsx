@@ -160,6 +160,7 @@ async function regenerateDraftAction(formData: FormData) {
   const path = `/content-plans/${planId}/items/${itemId}`;
   const draftTitle = normalizeEditorialText(String(formData.get("draftTitle") || ""));
   const draftMarkdown = normalizeEditorialText(String(formData.get("draftMarkdown") || ""));
+  const regenerationNotes = normalizeEditorialText(String(formData.get("regenerationNotes") || ""));
 
   const current = await fetchJson<ContentPlanItemDetail | null>(`/content-plans/${planId}/items/${itemId}`, null);
   if (!current) {
@@ -173,7 +174,13 @@ async function regenerateDraftAction(formData: FormData) {
       ? { ...(researchData.generation_payload as Record<string, unknown>) }
       : {};
 
-  researchData.manual_brief = buildManualBriefFromDraft(draftTitle, draftMarkdown);
+  const manualBrief = buildManualBriefFromDraft(draftTitle, draftMarkdown);
+  researchData.manual_brief = [
+    manualBrief,
+    regenerationNotes ? `Author regeneration instructions:\n${regenerationNotes}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   researchData.generation_payload = {
     ...currentPayload,
     draft_title: draftTitle,
@@ -436,13 +443,6 @@ export default async function ContentPlanItemPage({
               </SubmitButton>
             </form>
           ) : null}
-          <form action={generateIllustrationAction}>
-            <input type="hidden" name="planId" value={planId} />
-            <input type="hidden" name="itemId" value={itemId} />
-            <SubmitButton className="btn" pendingLabel="Генерируем иллюстрацию...">
-              {generatedImageUrl ? "Перегенерировать иллюстрацию" : "Сгенерировать иллюстрацию"}
-            </SubmitButton>
-          </form>
           {false ? (
             <form action={updateStatusAction}>
               <input type="hidden" name="planId" value={planId} />
@@ -550,8 +550,17 @@ export default async function ContentPlanItemPage({
 
           <article className="panel">
             <div className="panel-header">
-              <span className="panel-kicker">Визуал</span>
-              <h2 className="panel-title">Иллюстрация</h2>
+              <div>
+                <span className="panel-kicker">Визуал</span>
+                <h2 className="panel-title">Иллюстрация</h2>
+              </div>
+              <form action={generateIllustrationAction}>
+                <input type="hidden" name="planId" value={planId} />
+                <input type="hidden" name="itemId" value={itemId} />
+                <SubmitButton className="btn" pendingLabel="Генерируем иллюстрацию...">
+                  {generatedImageUrl ? "Перегенерировать иллюстрацию" : "Сгенерировать иллюстрацию"}
+                </SubmitButton>
+              </form>
             </div>
 
             {generatedImageUrl ? (
@@ -688,6 +697,16 @@ export default async function ContentPlanItemPage({
                   Длинные тире при сохранении автоматически заменяются на короткие, чтобы текст выглядел живее и менее
                   шаблонно.
                 </p>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Комментарий для перегенерации</label>
+                  <textarea
+                    name="regenerationNotes"
+                    className="form-input"
+                    rows={4}
+                    placeholder="Например: сделай подробнее, сравни Gemini, Claude, DeepSeek и ChatGPT, объясни кто в чем силен, без общих фраз."
+                    style={{ resize: "vertical" }}
+                  />
+                </div>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", flexWrap: "wrap" }}>
                   <button type="submit" formAction={regenerateDraftAction} className="btn">
                     Перегенерировать текст
