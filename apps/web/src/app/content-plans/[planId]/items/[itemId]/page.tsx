@@ -431,15 +431,15 @@ export default async function ContentPlanItemPage({
           </p>
         </div>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          {canGenerate ? (
+          {canGenerate && item.status !== "draft" ? (
             <form action={startGenerationAction}>
               <input type="hidden" name="planId" value={planId} />
               <input type="hidden" name="itemId" value={itemId} />
               <SubmitButton
                 className="btn btn-primary"
-                pendingLabel={item.status === "draft" ? "Перегенерируем пост..." : "Генерируем пост..."}
+                pendingLabel="Генерируем пост..."
               >
-                {item.status === "draft" ? "Перегенерировать пост" : "Сгенерировать пост"}
+                Сгенерировать пост
               </SubmitButton>
             </form>
           ) : null}
