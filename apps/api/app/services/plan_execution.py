@@ -120,7 +120,7 @@ async def build_plan_materials(session: AsyncSession, plan_id: UUID) -> list[dic
     plan = await _get_plan_with_product(session, plan_id)
     ordered_items = sorted(plan.items, key=lambda item: item.order)
     plan_settings = dict(plan.settings_json or {})
-    auto_generate_illustrations = plan_settings.get("auto_generate_illustrations", True) is True
+    auto_generate_illustrations = plan_settings.get("auto_generate_illustrations", False) is True
 
     for item in ordered_items:
         if item.status == "archived":

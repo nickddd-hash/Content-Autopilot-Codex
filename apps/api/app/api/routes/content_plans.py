@@ -264,8 +264,12 @@ async def update_content_plan(
     for field_name, value in payload.model_dump(exclude_unset=True).items():
         if field_name == "theme":
             value = (value or "").strip()
-        if field_name == "settings_json" and hasattr(value, "model_dump"):
-            value = value.model_dump()
+        if field_name == "settings_json":
+            incoming_settings = value.model_dump(exclude_unset=True) if hasattr(value, "model_dump") else dict(value or {})
+            value = {
+                **dict(plan.settings_json or {}),
+                **incoming_settings,
+            }
         setattr(plan, field_name, value)
     await session.commit()
     return await _get_plan_or_404(session, plan_id)

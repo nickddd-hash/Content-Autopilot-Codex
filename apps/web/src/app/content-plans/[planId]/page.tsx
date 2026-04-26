@@ -32,17 +32,18 @@ type ContentPlan = {
   month: string;
   theme: string | null;
   status: string;
-  settings_json?: {
-    content_mix?: {
-      practical?: number;
-      educational?: number;
-      news?: number;
-      opinion?: number;
-      critical?: number;
+    settings_json?: {
+      content_mix?: {
+        practical?: number;
+        educational?: number;
+        news?: number;
+        opinion?: number;
+        critical?: number;
+      };
+      auto_generate_illustrations?: boolean;
+      needs_reschedule?: boolean;
+      reschedule_reason?: string | null;
     };
-    needs_reschedule?: boolean;
-    reschedule_reason?: string | null;
-  };
   items: ContentPlanItem[];
 };
 
@@ -424,6 +425,7 @@ export default async function ContentPlanPage({
             planId={plan.id}
             initialMonth={plan.month}
             initialTheme={plan.theme}
+            initialAutoGenerateIllustrations={plan.settings_json?.auto_generate_illustrations === true}
             isJobActive={isJobActive}
           />
 

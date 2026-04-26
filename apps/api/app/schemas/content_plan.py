@@ -28,7 +28,7 @@ class ContentMixSettings(BaseModel):
 class ContentPlanSettings(BaseModel):
     content_mix: ContentMixSettings = Field(default_factory=ContentMixSettings)
     is_main: bool = False
-    auto_generate_illustrations: bool = True
+    auto_generate_illustrations: bool = False
     needs_reschedule: bool = False
     reschedule_reason: str | None = None
     reschedule_source_item_id: UUID | None = None

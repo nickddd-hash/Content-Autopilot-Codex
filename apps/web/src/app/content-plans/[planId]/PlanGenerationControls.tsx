@@ -9,6 +9,7 @@ type PlanGenerationControlsProps = {
   planId: string;
   initialMonth: string;
   initialTheme: string | null;
+  initialAutoGenerateIllustrations: boolean;
   isJobActive: boolean;
 };
 
@@ -21,6 +22,7 @@ export default function PlanGenerationControls({
   planId,
   initialMonth,
   initialTheme,
+  initialAutoGenerateIllustrations,
   isJobActive,
 }: PlanGenerationControlsProps) {
   const router = useRouter();
@@ -28,6 +30,7 @@ export default function PlanGenerationControls({
   const [theme, setTheme] = useState(initialTheme ?? "");
   const [generationTheme, setGenerationTheme] = useState("");
   const [numItems, setNumItems] = useState("");
+  const [autoGenerateIllustrations, setAutoGenerateIllustrations] = useState(initialAutoGenerateIllustrations);
   const [isSaving, setIsSaving] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
@@ -38,6 +41,9 @@ export default function PlanGenerationControls({
     await patchJson(`/content-plans/${planId}`, {
       month,
       theme: cleanTheme || null,
+      settings_json: {
+        auto_generate_illustrations: autoGenerateIllustrations,
+      },
     });
     return cleanTheme;
   }
@@ -146,6 +152,32 @@ export default function PlanGenerationControls({
           onChange={(event) => setGenerationTheme(event.target.value)}
         />
       </div>
+
+      <label
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "10px",
+          padding: "14px 16px",
+          border: "1px solid var(--border)",
+          borderRadius: "14px",
+          background: "rgba(255,255,255,0.55)",
+          color: "var(--text)",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={autoGenerateIllustrations}
+          onChange={(event) => setAutoGenerateIllustrations(event.target.checked)}
+          style={{ marginTop: "3px" }}
+        />
+        <span>
+          <strong>Генерировать иллюстрации сразу</strong>
+          <span className="form-hint" style={{ display: "block", marginTop: "4px" }}>
+            По умолчанию выключено: посты будут учитывать место под иллюстрацию, но картинки можно создать вручную позже.
+          </span>
+        </span>
+      </label>
 
       <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap" }}>
         {message ? <span className="form-hint" style={{ marginRight: "auto" }}>{message}</span> : null}
