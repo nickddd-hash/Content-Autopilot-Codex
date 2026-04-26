@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -22,6 +23,7 @@ from app.schemas.content_plan import (
     ContentPlanRead,
     ContentPlanUpdate,
     GeneratePlanItemsPayload,
+    MainContentPlanPayload,
     QuickPostPayload,
     RunPlanPipelinePayload,
 )
@@ -177,6 +179,62 @@ async def create_content_plan(
     session.add(plan)
     await session.commit()
     return await _get_plan_or_404(session, plan.id)
+
+
+@router.post("/main", response_model=ContentPlanRead, status_code=status.HTTP_200_OK)
+async def get_or_create_main_content_plan(
+    payload: MainContentPlanPayload,
+    session: AsyncSession = Depends(get_db_session),
+) -> ContentPlan:
+    product = await session.get(Product, payload.product_id)
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found.")
+
+    statement = (
+        select(ContentPlan)
+        .where(ContentPlan.product_id == payload.product_id)
+        .options(selectinload(ContentPlan.items))
+        .order_by(ContentPlan.created_at.desc())
+    )
+    result = await session.execute(statement)
+    existing_plans = list(result.scalars().unique().all())
+    main_plan = next(
+        (
+            plan
+            for plan in existing_plans
+            if isinstance(plan.settings_json, dict) and plan.settings_json.get("is_main") is True
+        ),
+        None,
+    )
+
+    if main_plan is None and existing_plans:
+        main_plan = existing_plans[0]
+
+    if main_plan is None:
+        now = datetime.now(timezone.utc)
+        main_plan = ContentPlan(
+            product_id=payload.product_id,
+            month=f"{now.year}-{now.month:02d}",
+            theme="Основной контент-план",
+            status="draft",
+            settings_json={"is_main": True},
+        )
+        session.add(main_plan)
+    else:
+        main_settings = dict(main_plan.settings_json or {})
+        main_settings["is_main"] = True
+        main_plan.settings_json = main_settings
+
+    for plan in existing_plans:
+        if main_plan is not None and plan.id == main_plan.id:
+            continue
+        settings = dict(plan.settings_json or {})
+        if settings.get("is_main") is True:
+            settings["is_main"] = False
+            plan.settings_json = settings
+
+    await session.commit()
+    return await _get_plan_or_404(session, main_plan.id)
 
 
 @router.get("/{plan_id}", response_model=ContentPlanRead)

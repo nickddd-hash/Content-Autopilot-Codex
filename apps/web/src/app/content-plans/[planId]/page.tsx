@@ -396,9 +396,9 @@ export default async function ContentPlanPage({
           <div className="panel-header" style={{ alignItems: "flex-start", gap: "20px" }}>
             <div style={{ flex: 1 }}>
               <span className="panel-kicker">Планирование</span>
-              <h2 className="panel-title">Настройки контент-плана</h2>
+              <h2 className="panel-title">Основной контент-план</h2>
               <p className="form-hint" style={{ marginTop: "10px" }}>
-                Сначала настройте месяц, тему и объем. Генерация начнется только после двойного подтверждения.
+                Это живой календарь проекта. Можно переименовать его отдельно, а новые серии постов добавлять внутрь по теме.
               </p>
             </div>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "flex-end" }}>

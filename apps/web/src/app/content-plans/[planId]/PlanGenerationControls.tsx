@@ -26,6 +26,7 @@ export default function PlanGenerationControls({
   const router = useRouter();
   const [month, setMonth] = useState(initialMonth);
   const [theme, setTheme] = useState(initialTheme ?? "");
+  const [generationTheme, setGenerationTheme] = useState("");
   const [numItems, setNumItems] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
@@ -59,25 +60,26 @@ export default function PlanGenerationControls({
     event.preventDefault();
     setMessage("");
 
-    const firstConfirm = window.confirm("Запустить генерацию контент-плана? Это может занять несколько минут.");
+    const firstConfirm = window.confirm("Добавить новые посты в основной контент-план? Это может занять несколько минут.");
     if (!firstConfirm) return;
 
-    const secondConfirm = window.confirm("Точно запускаем? Будут созданы темы, посты, иллюстрации и расписание.");
+    const secondConfirm = window.confirm("Точно запускаем? Новые темы, посты, иллюстрации и расписание добавятся в текущий план.");
     if (!secondConfirm) return;
 
     setIsStarting(true);
     try {
-      const cleanTheme = await savePlanSettings();
+      await savePlanSettings();
+      const cleanGenerationTheme = generationTheme.trim();
       const cleanNumItems = numItems.trim();
       const parsedNumItems = cleanNumItems ? Number(cleanNumItems) : undefined;
 
       await postJson<JobResponse>(`/content-plans/${planId}/run-pipeline`, {
         generate_items: true,
-        theme: cleanTheme || null,
+        theme: cleanGenerationTheme || null,
         num_items: parsedNumItems !== undefined && Number.isFinite(parsedNumItems) && parsedNumItems > 0 ? parsedNumItems : null,
       });
 
-      setMessage("Генерация запущена. Страница будет обновляться автоматически.");
+      setMessage("Генерация запущена. Новые посты добавятся в этот план.");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Не удалось запустить генерацию.");
@@ -134,6 +136,17 @@ export default function PlanGenerationControls({
         </div>
       </div>
 
+      <div className="form-group" style={{ marginBottom: 0 }}>
+        <label className="form-label">Тема добавляемых постов</label>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="Например: 5 постов про AI для архитекторов. Можно оставить пустым."
+          value={generationTheme}
+          onChange={(event) => setGenerationTheme(event.target.value)}
+        />
+      </div>
+
       <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap" }}>
         {message ? <span className="form-hint" style={{ marginRight: "auto" }}>{message}</span> : null}
         <button type="button" className="btn" onClick={handleSaveSettings} disabled={isSaving || isStarting || isJobActive}>
@@ -143,7 +156,7 @@ export default function PlanGenerationControls({
           {isStopping ? "Останавливаем..." : "Остановить генерацию"}
         </button>
         <button type="submit" className="btn btn-primary" disabled={isStarting || isJobActive}>
-          {isStarting ? "Запускаем..." : "Создать план"}
+          {isStarting ? "Добавляем..." : "Добавить посты в план"}
         </button>
       </div>
     </form>

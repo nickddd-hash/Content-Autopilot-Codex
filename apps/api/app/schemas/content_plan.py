@@ -27,6 +27,7 @@ class ContentMixSettings(BaseModel):
 
 class ContentPlanSettings(BaseModel):
     content_mix: ContentMixSettings = Field(default_factory=ContentMixSettings)
+    is_main: bool = False
     auto_generate_illustrations: bool = True
     needs_reschedule: bool = False
     reschedule_reason: str | None = None
@@ -126,6 +127,10 @@ class ContentPlanCreate(BaseModel):
     status: str = Field(default="draft", min_length=2, max_length=50)
     settings_json: ContentPlanSettings = Field(default_factory=ContentPlanSettings)
     items: list[ContentPlanItemCreate] = Field(default_factory=list)
+
+
+class MainContentPlanPayload(BaseModel):
+    product_id: UUID
 
 
 class ContentPlanUpdate(BaseModel):

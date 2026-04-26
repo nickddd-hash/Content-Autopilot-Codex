@@ -59,6 +59,9 @@ type ContentPlan = {
   month: string;
   theme: string | null;
   status: string;
+  settings_json?: {
+    is_main?: boolean;
+  };
   items: ContentPlanItem[];
 };
 
@@ -110,6 +113,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
   }
 
   const productPlans = contentPlans.filter((plan) => plan.product_id === productId).sort((a, b) => b.month.localeCompare(a.month));
+  const mainPlan = productPlans.find((plan) => plan.settings_json?.is_main) ?? productPlans[0] ?? null;
+  const secondaryPlans = productPlans.filter((plan) => plan.id !== mainPlan?.id);
   const autopostEnabled = Boolean(product.content_settings?.autopilot_enabled && product.content_settings?.social_posting_enabled);
 
   return (
@@ -137,7 +142,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   <HelpHint text="Здесь создаются планы, темы и материалы. Любой пост потом можно открыть, поправить или удалить вручную." />
                 </h2>
               </div>
-              <span className="badge badge-accent">{productPlans.length}</span>
+              <span className="badge badge-accent">{mainPlan ? "Основной" : "Нет плана"}</span>
             </div>
 
             <form
@@ -179,8 +184,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </form>
 
             <div className="list-container" style={{ marginBottom: "20px" }}>
-              {productPlans.length > 0 ? (
-                productPlans.map((plan) => (
+              {mainPlan ? (
+                [mainPlan, ...secondaryPlans].map((plan) => (
                   <div key={plan.id} className="list-item compact-list-item">
                     <div>
                       <Link href={`/content-plans/${plan.id}`} className="list-item-title item-link" style={{ textDecoration: "none" }}>
@@ -192,6 +197,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     </div>
 
                     <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      {plan.id === mainPlan.id ? <span className="badge badge-accent">Основной</span> : <span className="badge badge-outline">Кампания</span>}
                       <span className={getBadgeClass(plan.status)}>{statusLabel(plan.status)}</span>
                       <Link href={`/content-plans/${plan.id}`} className="btn btn-sm">
                         Открыть
@@ -217,7 +223,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               )}
             </div>
 
-            <ProductPlanForm productId={productId} />
+            <ProductPlanForm productId={productId} hasMainPlan={Boolean(mainPlan)} />
           </article>
         </div>
 
