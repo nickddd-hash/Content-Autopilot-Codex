@@ -358,6 +358,7 @@ export default async function ContentPlanPage({
   };
   const dominantDirection = getDominantDirection(plan.settings_json?.content_mix);
   const visibleItems = plan.items.filter((item) => item.status !== "archived");
+  const archivedItemsCount = plan.items.length - visibleItems.length;
   const scheduledItems = visibleItems.filter((item) => Boolean(item.scheduled_at));
   const scheduledItemsByDay = new Map<string, ContentPlanItem[]>();
   for (const item of scheduledItems) {
@@ -385,7 +386,8 @@ export default async function ContentPlanPage({
           <h1>{plan.theme || "План без фиксированной темы"}</h1>
           <p className="lead" style={{ marginTop: "12px", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
             <span className={getBadgeClass(plan.status)}>{statusLabel(plan.status)}</span>
-            <span>Темы: {plan.items.length}</span>
+            <span>Посты: {visibleItems.length}</span>
+            {archivedItemsCount > 0 ? <span>Архив: {archivedItemsCount}</span> : null}
           </p>
         </div>
       </header>

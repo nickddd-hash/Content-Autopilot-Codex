@@ -75,6 +75,10 @@ function getBadgeClass(status: string) {
   return "badge badge-info";
 }
 
+function getVisiblePlanItemsCount(plan: ContentPlan) {
+  return plan.items.filter((item) => item.status !== "archived").length;
+}
+
 async function deletePlanAction(formData: FormData) {
   "use server";
   const productId = String(formData.get("productId"));
@@ -192,7 +196,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         {plan.theme || "План без фиксированной темы"}
                       </Link>
                       <span className="list-item-sub">
-                        {plan.month} · {plan.items.length} тем
+                        {plan.month} · {getVisiblePlanItemsCount(plan)} постов
                       </span>
                     </div>
 
