@@ -124,3 +124,33 @@ Additional working pieces:
   - calendar on the left
   - posts for selected day on the right
   - date changes inside the post page, not inside the plan page
+
+## Session 2026-04-26 State
+
+Current architecture/product state:
+
+- A product should have one main content plan.
+- New plan generation appends active posts into the main plan instead of creating many simultaneous plans.
+- Plan generation is intentionally explicit:
+  - product page create/open action
+  - settings page
+  - double confirmation before real generation
+  - stop/cancel generation action
+- Plan generation defaults to text/topics/schedule without generating images immediately.
+- Visuals are still part of the expected content structure, but image generation can happen later from the item visual block.
+- Draft regeneration supports a user instruction/comment so weak drafts can be redirected without manual rewriting.
+- Publish-now behavior now preserves schedule regularity by compacting future unpublished posts after a future slot is emptied.
+
+Production state:
+
+- Latest deployed code commit before docs handover: `2dd301e fix: compact schedule after manual publish`.
+- Production URL: `https://content.flowsmart.ru`.
+- Server path: `/opt/athena-content`.
+- Health was OK after deploy.
+
+Product voice state:
+
+- The project is being shaped around Nikolay's personal/broad AI blog, `AI bez slozhnosti`.
+- Target is broad Russia/CIS audience, not technical AI practitioners.
+- Content should make people feel that AI/automation is approachable and useful today.
+- Recommended editorial direction: practical tips, simple explanations, Russian/CIS-relevant examples, and occasional deeper SaaS/automation case studies.

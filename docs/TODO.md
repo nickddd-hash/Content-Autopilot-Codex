@@ -77,3 +77,24 @@ Current focus additions:
   - publish now
 - Recheck the live rendered plan page after the calendar redesign and verify there are no encoding regressions.
 - Keep future UI cleanup point-sized; avoid broad file rewrites on plan/item routes.
+
+## Session 2026-04-26 Follow-Up
+
+- Run one real publish-now test on a future scheduled post and confirm:
+  - selected post publishes immediately
+  - its old future calendar slot is freed
+  - later unpublished posts shift up
+  - archived/published items do not distort active plan counters
+- Improve post-generation depth for broad non-technical AI education:
+  - avoid vague "AI is useful" posts
+  - prefer concrete examples and named tools/models where relevant
+  - for model-comparison topics, cover Gemini, Claude, DeepSeek, ChatGPT, and practical strengths/limits
+- Keep default plan generation without immediate illustration generation unless the user enables it.
+- Preserve all-channel planning:
+  - do not pick a single main channel
+  - plan topics and formats around the whole product channel set
+  - adapt the same idea per channel when needed
+- Later technical hardening:
+  - move long generation/publish jobs to a durable worker/queue
+  - clean corrupted docs/UI strings only with encoding-safe tooling
+  - keep deploy verification after every code change

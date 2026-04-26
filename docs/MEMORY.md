@@ -176,3 +176,44 @@
   - content plan page now uses a more compact calendar layout
   - goal is calendar on the left, posts for selected day on the right
   - editing publication date should stay inside the post page, not inside the plan page
+
+## Session 2026-04-26 Memory
+
+Stop state:
+
+- Work is on `main` in `C:\Users\nickd\.gemini\antigravity\scratch\Content-Autopilot-Codex`.
+- Production is `https://content.flowsmart.ru` on server `82.21.72.233`, remote path `/opt/athena-content`.
+- Latest deployed code commit before this docs handover is `2dd301e fix: compact schedule after manual publish`.
+- Production responded successfully after deploy: site `200`, health `{"status":"ok"}`.
+
+Implemented and deployed:
+
+- Explicit content-plan creation flow: product page opens plan settings instead of generating immediately.
+- Double confirmation before actual generation.
+- Stop/cancel generation button and backend cancel endpoint.
+- Editable plan title.
+- One main content plan per product. New generated posts are appended into that plan.
+- Optional illustration generation for plan generation, default off.
+- Posts still assume an illustration slot by default even when image generation is skipped.
+- Archived posts are excluded from visible active counters.
+- Image generation button moved into the visual block.
+- Draft text regeneration now has a user comment/notes field.
+- RU/CIS localization was added to prompts so examples fit Russian-speaking users first.
+- Top draft `Regenerate post` button was removed to reduce duplicate actions.
+- Manual `Publish now` now compacts the future schedule by shifting later unpublished posts into the freed slot.
+
+Important user/business context:
+
+- User is Nikolay, not Nikita.
+- Blog/channel name chosen: `AI bez slozhnosti`.
+- The blog is broad, not for technical AI people.
+- Core audience: people in Russia/CIS who have heard about AI and automation, are interested in theory, but postpone action or wait until someone trusted shows them a simple path.
+- Also include unexpected adjacent audiences: astrologers, architects, freelancers, small experts, small business owners, consultants, and people who could benefit from automation but do not know what to ask for yet.
+- Tone: simple, practical, calm, friendly, without technical show-off.
+
+Operational reminders:
+
+- Deploy after code changes unless the user explicitly says not to.
+- Docs-only commits do not need deploy.
+- Use small targeted frontend patches; avoid broad rewrites of plan/item pages because encoding issues have happened before.
+- If testing generation, remember that immediate illustration generation can spend extra provider tokens.

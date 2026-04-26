@@ -174,3 +174,55 @@
   - plan page calendar is being reshaped into a compact left-column calendar plus right-column post list
   - date editing belongs inside the item page
   - next session should continue from that layout, not re-open broad UI cleanup across the whole app
+
+## Session 2026-04-26 Stop Point
+
+Repository:
+
+- Local workspace: `C:\Users\nickd\.gemini\antigravity\scratch\Content-Autopilot-Codex`
+- GitHub: `https://github.com/nickddd-hash/Content-Autopilot-Codex`
+- Branch: `main`
+- Production: `https://content.flowsmart.ru`
+- Server: `82.21.72.233`, remote path `/opt/athena-content`
+- Deploy command:
+  `powershell -ExecutionPolicy Bypass -File infra\deploy_server.ps1 -HostName root@82.21.72.233 -KeyPath $HOME\.ssh\master_deploy -RemotePath /opt/athena-content`
+
+Latest deployed code commit before this handover update:
+
+- `2dd301e fix: compact schedule after manual publish`
+- Production health after deploy:
+  - `/` returned `200`
+  - `/api/health` returned `{"status":"ok"}`
+
+What changed in this work block:
+
+- Product page no longer generates a content plan immediately. The create button opens/creates the plan settings flow first.
+- Actual plan generation now requires double confirmation and has a stop/cancel action.
+- Each product now has one main content plan. New generations add posts into that main plan instead of creating many competing monthly plans.
+- Plan title is editable.
+- Plan generation can skip illustrations. Default is no immediate illustration generation, but posts still reserve space/format for an illustration.
+- Active counters now exclude archived items, so archived posts do not make the plan look inconsistent.
+- The post page has a regeneration comment field. User can explain how to improve the draft before regenerating text.
+- The old top `Regenerate post` draft button was removed; regeneration lives in the text editing/regeneration block.
+- Global prompts now assume the blog is for Russia/CIS. Western services can be mentioned as global trend examples, but not as default everyday-use recommendations.
+- `Publish now` now publishes the selected future item immediately and compacts the future schedule: later unpublished posts shift up into the freed slot so regularity is preserved.
+
+Current product decisions to preserve:
+
+- All channels in a product are important. Do not choose one "main" channel. Generate/adapt content according to the full channel set.
+- For "AI bez slozhnosti", the audience is broad and non-technical: people who heard about AI/automation, are curious, but do not actively search for solutions yet.
+- Content should stay practical, light, and useful: small everyday AI tricks, simple explanations, AI news, and occasional stronger SaaS/automation examples.
+- The system should support maximum automation, while preserving manual editing and override paths.
+
+Known cautions:
+
+- Some older memory/docs and terminal output show mojibake. Avoid broad rewrites of UTF-8-heavy frontend files.
+- Plan and item pages are sensitive to encoding regressions. Make small targeted patches and verify rendered pages after deploy.
+- The latest publish-now compaction compiled and deployed, but it still deserves one real manual publish test when the user is ready.
+
+Likely next tasks:
+
+- Test publish-now compaction with a real scheduled post.
+- Improve prompt quality for detailed practical posts, e.g. AI model comparisons: Gemini, Claude, DeepSeek, ChatGPT, etc.
+- Consider moving generation/publishing jobs to a more durable background worker instead of lightweight in-process tasks.
+- Later, carefully clean corrupted docs/strings if needed, but only with encoding-safe tooling.
