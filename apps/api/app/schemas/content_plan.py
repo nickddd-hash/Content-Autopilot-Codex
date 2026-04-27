@@ -174,6 +174,7 @@ class RunPlanPipelinePayload(BaseModel):
     generate_items: bool = False
     theme: str | None = Field(default=None, max_length=255)
     num_items: int | None = Field(default=None, ge=1, le=30)
+    channel_targets: list[str] = Field(default_factory=list)
 
 
 class QuickPostPayload(BaseModel):

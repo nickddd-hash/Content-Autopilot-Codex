@@ -62,6 +62,7 @@ type PlanJob = {
 const CALENDAR_WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const DEFAULT_CHANNELS = ["telegram"];
 const CHANNEL_LABELS: Record<string, string> = {
+  dzen: "DZ",
   telegram: "TG",
   instagram: "IG",
   vk: "VK",
@@ -75,6 +76,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   email: "MAIL",
 };
 const CHANNEL_TITLES: Record<string, string> = {
+  dzen: "Дзен",
   telegram: "Telegram",
   instagram: "Instagram",
   vk: "VK",
@@ -144,6 +146,7 @@ function formatScheduledLabel(value?: string | null) {
 
 function normalizeChannel(value: string) {
   const normalized = value.trim().toLowerCase();
+  if (["dzen", "дзен"].includes(normalized)) return "dzen";
   if (["tg", "telegram"].includes(normalized)) return "telegram";
   if (["insta", "instagram", "reels"].includes(normalized)) return "instagram";
   if (["yt", "youtube", "shorts"].includes(normalized)) return "youtube";
@@ -429,6 +432,7 @@ export default async function ContentPlanPage({
             initialTheme={plan.theme}
             initialAutoGenerateIllustrations={plan.settings_json?.auto_generate_illustrations === true}
             isJobActive={isJobActive}
+            availableChannels={productChannels}
           />
 
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "16px" }}>

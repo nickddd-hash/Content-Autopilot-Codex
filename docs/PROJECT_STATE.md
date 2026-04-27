@@ -154,3 +154,32 @@ Product voice state:
 - Target is broad Russia/CIS audience, not technical AI practitioners.
 - Content should make people feel that AI/automation is approachable and useful today.
 - Recommended editorial direction: practical tips, simple explanations, Russian/CIS-relevant examples, and occasional deeper SaaS/automation case studies.
+
+## Session 2026-04-27 State
+
+New working pieces:
+
+- Dzen is now supported as a second real content channel.
+- Dzen channel supports generation mode:
+  - `auto`
+  - `post`
+  - `article`
+- Existing plans can be extended with channel-selected materials.
+- Scheduling is now parallel by channel group instead of one global queue.
+
+Important editorial correction:
+
+- Automation and bot topics must not drift into:
+  - constructors
+  - no-code DIY
+  - fake first-person founder stories
+  - self-assembly tutorials
+- Default framing must lead to the author as implementer:
+  - bot production
+  - implementation under the client's process
+  - done-for-you automation help
+
+Current caution:
+
+- If an item already contains bad semantic anchors in its title, angle, keywords or manual brief, model regeneration can inherit that drift.
+- In such cases, clean the item inputs first, then regenerate.

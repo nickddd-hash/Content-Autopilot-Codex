@@ -23,6 +23,9 @@ def _friendly_http_error(platform: str, error: httpx.HTTPError) -> str:
             return "VK не принял access token или group_id. Проверьте данные и попробуйте снова."
         return "Не удалось проверить VK. Проверьте access token и group_id."
 
+    if platform == "dzen":
+        return "Не удалось проверить URL канала Дзена."
+
     return f"Не удалось проверить {platform}."
 
 
@@ -86,5 +89,17 @@ async def validate_channel_connection(platform: str, secrets: dict[str, Any], se
         resolved_group_id = group.get("id")
         resolved_name = group.get("name")
         return str(resolved_group_id) if resolved_group_id is not None else group_id, resolved_name or "VK group"
+
+    if normalized_platform == "dzen":
+        channel_url = str(settings.get("channel_url", "")).strip()
+        rss_url = str(settings.get("rss_url", "")).strip()
+        if not channel_url and not rss_url:
+            raise ChannelValidationError("Для Дзена нужен URL канала или RSS feed URL.")
+
+        target_url = channel_url or rss_url
+        if not target_url.startswith(("http://", "https://")):
+            raise ChannelValidationError("URL Дзена должен начинаться с http:// или https://.")
+
+        return target_url, channel_url or rss_url or "Dzen channel"
 
     raise ChannelValidationError(f"Платформа {platform} пока не поддерживается для автопостинга.")

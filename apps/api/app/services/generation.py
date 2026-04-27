@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models import BrandProfile, ContentPlan, ContentPlanItem, JobRun, Product
 from app.schemas.job_run import StartGenerationResponse
+from app.services.channel_profiles import resolve_dzen_format_mode, resolve_dzen_output_format
 from app.services.generation_prompt import build_generation_messages
 from app.services.llm_client import LLMClientError, generate_json
 from app.services.text_normalization import normalize_user_facing_text
@@ -32,7 +33,11 @@ async def get_content_plan_item_or_404(
     plan_id: UUID,
     item_id: UUID,
 ) -> tuple[ContentPlan, ContentPlanItem]:
-    plan_statement = select(ContentPlan).where(ContentPlan.id == plan_id).options(selectinload(ContentPlan.product))
+    plan_statement = (
+        select(ContentPlan)
+        .where(ContentPlan.id == plan_id)
+        .options(selectinload(ContentPlan.product).selectinload(Product.channels))
+    )
     plan = await session.scalar(plan_statement)
     if plan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content plan not found.")
@@ -62,12 +67,102 @@ def _sanitize_generation_payload(value: Any) -> Any:
     return value
 
 
+def _normalize_channel_list(raw_channels: Any) -> list[str]:
+    if not isinstance(raw_channels, list):
+        return []
+
+    normalized: list[str] = []
+    for channel in raw_channels:
+        value = str(channel).strip().lower()
+        if value:
+            normalized.append(value)
+    return normalized
+
+
+def _get_selected_channels(item: ContentPlanItem, product: Product | None = None) -> list[str]:
+    if isinstance(item.research_data, dict):
+        selected_channels = _normalize_channel_list(item.research_data.get("channel_targets"))
+        if selected_channels:
+            return selected_channels
+
+    if product is not None:
+        product_channels = _normalize_channel_list(product.primary_channels)
+        if product_channels:
+            return product_channels
+
+    return ["telegram"]
+
+
+def _build_channel_adaptations(item: ContentPlanItem, generation_payload: dict[str, Any], channels: list[str]) -> dict[str, dict[str, str]]:
+    raw_adaptations = generation_payload.get("channel_adaptations")
+    normalized_adaptations: dict[str, dict[str, str]] = {}
+    if isinstance(raw_adaptations, dict):
+        for channel_key, adaptation in raw_adaptations.items():
+            normalized_channel = str(channel_key).strip().lower()
+            if not normalized_channel or not isinstance(adaptation, dict):
+                continue
+            normalized_adaptations[normalized_channel] = {
+                key: str(value).strip()
+                for key, value in adaptation.items()
+                if isinstance(value, str) and str(value).strip()
+            }
+
+    research_data = item.research_data if isinstance(item.research_data, dict) else {}
+    draft_title = str(generation_payload.get("draft_title") or item.title or "").strip()
+    draft_markdown = str(generation_payload.get("draft_markdown") or "").strip()
+    summary = str(generation_payload.get("summary") or item.angle or "").strip()
+    asset_brief = str(research_data.get("asset_brief") or generation_payload.get("asset_brief") or "").strip()
+    dzen_output_format = resolve_dzen_output_format(
+        research_data.get("content_direction"),
+        resolve_dzen_format_mode(None, research_data),
+    )
+
+    if "telegram" in channels:
+        telegram_adaptation = normalized_adaptations.get("telegram", {})
+        telegram_adaptation.setdefault("format", "telegram_post")
+        if draft_markdown and not telegram_adaptation.get("content_markdown"):
+            telegram_adaptation["content_markdown"] = draft_markdown
+        if asset_brief and not telegram_adaptation.get("asset_brief"):
+            telegram_adaptation["asset_brief"] = asset_brief
+        normalized_adaptations["telegram"] = telegram_adaptation
+
+    if "dzen" in channels:
+        dzen_adaptation = normalized_adaptations.get("dzen", {})
+        dzen_adaptation.setdefault("format", dzen_output_format)
+        if not dzen_adaptation.get("content_markdown"):
+            lead = summary or draft_markdown
+            title_line = draft_title
+            if dzen_output_format == "dzen_post":
+                dzen_adaptation["content_markdown"] = "\n\n".join(
+                    part
+                    for part in [
+                        title_line,
+                        draft_markdown or lead,
+                    ]
+                    if part
+                ).strip()
+            else:
+                dzen_adaptation["content_markdown"] = "\n\n".join(
+                    part
+                    for part in [
+                        title_line,
+                        lead,
+                        draft_markdown if draft_markdown and draft_markdown != lead else "",
+                    ]
+                    if part
+                ).strip()
+        if asset_brief and not dzen_adaptation.get("asset_brief"):
+            dzen_adaptation["asset_brief"] = asset_brief
+        normalized_adaptations["dzen"] = dzen_adaptation
+
+    return normalized_adaptations
+
+
 def _should_enforce_telegram_caption_limit(item: ContentPlanItem) -> bool:
     if not isinstance(item.research_data, dict):
         return True
 
-    raw_channels = item.research_data.get("channel_targets")
-    channels = [str(channel).strip().lower() for channel in raw_channels] if isinstance(raw_channels, list) else []
+    channels = _normalize_channel_list(item.research_data.get("channel_targets"))
     include_illustration = item.research_data.get("include_illustration", True)
 
     # Planned items default to Telegram posts with illustrations. Custom posts
@@ -131,7 +226,7 @@ def _enforce_publishable_telegram_payload(item: ContentPlanItem, generation_payl
 
 def _build_fallback_generation_payload(item: ContentPlanItem, product: Product | None) -> dict[str, Any]:
     product_name = product.name if product else "Product"
-    return {
+    payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "generator_mode": "fallback_stub",
         "draft_title": item.title,
@@ -158,6 +253,8 @@ def _build_fallback_generation_payload(item: ContentPlanItem, product: Product |
             "После восстановления основной модели стоит перегенерировать текст.",
         ],
     }
+    payload["channel_adaptations"] = _build_channel_adaptations(item, payload, _get_selected_channels(item, product))
+    return payload
 
 
 def build_content_plan_item_detail(item: ContentPlanItem) -> dict[str, Any]:
@@ -167,6 +264,8 @@ def build_content_plan_item_detail(item: ContentPlanItem) -> dict[str, Any]:
 
     if not isinstance(generation_payload, dict):
         generation_payload = {}
+
+    channel_adaptations = _build_channel_adaptations(item, generation_payload, _get_selected_channels(item))
 
     return {
         "id": item.id,
@@ -196,6 +295,7 @@ def build_content_plan_item_detail(item: ContentPlanItem) -> dict[str, Any]:
         "generated_summary": normalize_user_facing_text(str(generation_payload.get("summary"))) if generation_payload.get("summary") else None,
         "generated_hook": normalize_user_facing_text(str(generation_payload.get("hook"))) if generation_payload.get("hook") else None,
         "generated_cta": normalize_user_facing_text(str(generation_payload.get("cta"))) if generation_payload.get("cta") else None,
+        "channel_adaptations": channel_adaptations,
         "generation_mode": item.article_review.get("generation_mode") if isinstance(item.article_review, dict) else None,
     }
 
@@ -254,6 +354,11 @@ async def start_manual_generation(
     generation_payload = _sanitize_generation_payload(generation_payload)
     if isinstance(generation_payload, dict):
         generation_payload = _enforce_publishable_telegram_payload(item, generation_payload)
+        generation_payload["channel_adaptations"] = _build_channel_adaptations(
+            item,
+            generation_payload,
+            _get_selected_channels(item, plan.product),
+        )
     existing_research_data = item.research_data if isinstance(item.research_data, dict) else {}
 
     item.research_data = {

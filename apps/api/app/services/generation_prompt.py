@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.models import BrandProfile, ContentPlan, ContentPlanItem, Product
 from app.schemas.content_plan import PLAN_DIRECTION_KEYS
+from app.services.channel_profiles import resolve_dzen_format_mode, resolve_dzen_output_format
 
 
 def _join_lines(values: list[str]) -> str:
@@ -10,12 +11,30 @@ def _join_lines(values: list[str]) -> str:
     return "\n".join(f"- {value}" for value in values)
 
 
-def _build_channel_instruction(channels: list[str], *, include_illustration: bool = False) -> str:
+def _build_channel_instruction(
+    channels: list[str],
+    *,
+    include_illustration: bool = False,
+    content_direction: str | None = None,
+    dzen_format_mode: str = "auto",
+) -> str:
     normalized_channels = [channel.lower() for channel in channels]
+    has_telegram = "telegram" in normalized_channels
+    has_dzen = "dzen" in normalized_channels
+    dzen_output_format = resolve_dzen_output_format(content_direction, dzen_format_mode)
+    dzen_label = "Dzen post" if dzen_output_format == "dzen_post" else "Dzen article"
+    dzen_range = "900 to 1500 characters" if dzen_output_format == "dzen_post" else "1800 to 3200 characters"
+    dzen_shape = (
+        "- For Dzen, write a compact post with a clear title, a strong opening and one coherent thought.\n"
+        "- Keep it more explanatory than Telegram, but still quick to read and suitable for feed consumption.\n"
+    ) if dzen_output_format == "dzen_post" else (
+        "- For Dzen, write a fuller article with a calm lead and a simple structure of short readable sections.\n"
+        "- Explain the idea more fully for a colder audience, but keep it practical and easy to read.\n"
+    )
 
-    if "telegram" in normalized_channels:
+    if has_telegram:
         if include_illustration:
-            return (
+            instruction = (
                 "Primary format: Telegram post with illustration.\n"
                 "- draft_markdown must be a ready-to-post Telegram text, not an article.\n"
                 "- Aim for roughly 500 to 850 characters.\n"
@@ -26,16 +45,40 @@ def _build_channel_instruction(channels: list[str], *, include_illustration: boo
                 "- Keep the result calm, practical, human and easy to read on mobile.\n"
                 "- The post should feel publishable with minimal editing."
             )
+        else:
+            instruction = (
+                "Primary format: Telegram post.\n"
+                "- draft_markdown must be a ready-to-post Telegram text, not an article.\n"
+                "- Aim for roughly 600 to 900 characters.\n"
+                "- Keep the post short enough to fit into one Telegram publication together with an illustration.\n"
+                "- Use short paragraphs, strong opening, concrete examples and one clear takeaway.\n"
+                "- Do not use long article headings, subheadings or bulky section structure.\n"
+                "- Avoid em dashes and en dashes. Prefer commas, periods, colons or a short hyphen when really needed.\n"
+                "- Keep the result calm, practical, human and easy to read on mobile.\n"
+                "- The post should feel publishable with minimal editing."
+            )
+
+        if has_dzen:
+            instruction += (
+                f"\nAlso prepare a {dzen_label} adaptation in channel_adaptations.dzen.\n"
+                f"{dzen_shape}"
+                f"- Aim for roughly {dzen_range} in the Dzen adaptation.\n"
+                "- The Dzen version should fit the chosen Dzen format explicitly, not default to an article every time.\n"
+                "- Do not use markdown syntax like #, ##, ** or bullet asterisks in the final text fields."
+            )
+        return instruction
+
+    if has_dzen:
         return (
-            "Primary format: Telegram post.\n"
-            "- draft_markdown must be a ready-to-post Telegram text, not an article.\n"
-            "- Aim for roughly 600 to 900 characters.\n"
-            "- Keep the post short enough to fit into one Telegram publication together with an illustration.\n"
-            "- Use short paragraphs, strong opening, concrete examples and one clear takeaway.\n"
-            "- Do not use long article headings, subheadings or bulky section structure.\n"
-            "- Avoid em dashes and en dashes. Prefer commas, periods, colons or a short hyphen when really needed.\n"
-            "- Keep the result calm, practical, human and easy to read on mobile.\n"
-            "- The post should feel publishable with minimal editing."
+            f"Primary format: {dzen_label}.\n"
+            f"- draft_markdown should be a readable Dzen-ready {dzen_output_format.replace('dzen_', '')}, not a Telegram post.\n"
+            f"- Aim for roughly {dzen_range}.\n"
+            f"{dzen_shape}"
+            "- Explain ideas clearly for a colder, broader and less prepared audience.\n"
+            "- Keep the tone practical, human and accessible.\n"
+            "- Avoid em dashes and en dashes in the final wording.\n"
+            "- Do not use markdown syntax like #, ##, ** or bullet asterisks in the final text fields.\n"
+            "- Also return channel_adaptations.dzen so the channel-specific version is explicit in the payload."
         )
 
     return (
@@ -132,7 +175,14 @@ def build_generation_messages(
             include_illustration = raw_include_illustration
     if not selected_channels:
         selected_channels = list(available_channels)
-    channel_instruction = _build_channel_instruction(selected_channels, include_illustration=include_illustration)
+    dzen_format_mode = resolve_dzen_format_mode(product, item.research_data if isinstance(item.research_data, dict) else None)
+    dzen_output_format = resolve_dzen_output_format(content_direction, dzen_format_mode)
+    channel_instruction = _build_channel_instruction(
+        selected_channels,
+        include_illustration=include_illustration,
+        content_direction=content_direction,
+        dzen_format_mode=dzen_format_mode,
+    )
     direction_instruction = _build_direction_instruction(content_direction)
 
     system_prompt = f"""
@@ -144,6 +194,12 @@ Avoid generic AI filler, vague motivation, repetitive advice, bloated article st
 Default geography and context: Russia and CIS.
 Use examples, daily scenarios, platforms and constraints that make sense for readers in Russia and CIS.
 Western/global services such as Netflix, Spotify, YouTube, Notion, Google products, OpenAI products and similar may be mentioned when discussing global trends, model capabilities or international cases, but do not present them as the default everyday services or primary practical recommendations for the audience unless the brief explicitly asks for that.
+Do not invent personal biography, personal experience, favorite tools, clients, projects or "my workflow" if such facts are not explicitly provided in the brief.
+Do not write from a fake first-person position like "I use", "my favorite tools", "my bot does" unless that exact experience was explicitly given.
+Do not push readers toward DIY no-code constructors, self-service builders or "go assemble it yourself" as the main recommendation unless the brief explicitly asks for that.
+If the topic is about automation or bots, default commercial direction is: show the problem, explain the practical value, and gently lead the reader toward the author's help, bot production or implementation service instead of tool shopping.
+Forbidden default moves unless explicitly requested in the brief: no-code constructors, visual bot builders, "my favorite platforms", "Google Sheets + bot" tutorials, Telegram Bot API walkthroughs, and phrases like "I am not a programmer, but...".
+Also avoid the default lexical frame "без кода", "не нужно быть программистом", "готовые компоненты", "соберите сами", if it shifts the text into DIY instructions instead of a service/result framing.
 
 {channel_instruction}
 {direction_instruction}
@@ -155,6 +211,18 @@ Return valid JSON with this shape:
   "summary": "string",
   "hook": "string",
   "cta": "string",
+  "channel_adaptations": {{
+    "telegram": {{
+      "format": "telegram_post",
+      "content_markdown": "string",
+      "asset_brief": "string"
+    }},
+    "dzen": {{
+      "format": "{dzen_output_format}",
+      "content_markdown": "string",
+      "asset_brief": "string"
+    }}
+  }},
   "repurposing": {{
     "post": "string",
     "carousel": ["string", "string"],
@@ -240,10 +308,19 @@ Requirements:
 - Produce a practical, useful, high-signal first draft.
 - The writing should feel like a real expert draft, not synthetic filler.
 - Keep the voice calm, clear, intelligent, credible and easy to read.
-- Prefer one compact Telegram-ready post over a long article.
+- Prefer one compact Telegram-ready post over a long article when Telegram is among selected channels.
+- When Dzen is among selected channels, also produce a clearer, longer Dzen adaptation in channel_adaptations.dzen.
 - Use a strong hook and a soft CTA unless the brief clearly needs a different CTA.
 - Make repurposing outputs materially useful, not placeholders.
 - Avoid long dashes in every field of the response.
+- Do not add markdown headings, bold markers or bullet asterisks in final user-facing text fields.
+- Do not invent first-person case studies or claims of personal usage when they were not given in the brief.
+- Do not recommend no-code builders, constructors or DIY assembly as the default path.
+- For automation topics, prefer a service-oriented framing: the reader can come to the author for implementation, setup or bot production.
+- Do not mention no-code constructors, visual builders, Telegram Bot API tutorials, Google Sheets automations or similar DIY tooling unless the brief explicitly asks for them.
+- Do not write phrases like "я не программист", "мой любимый инструмент", "я пользуюсь конструкторами", "соберите это сами".
+- Do not default to phrases like "без кода", "не нужно быть программистом", "готовые компоненты", "визуальный редактор", if that steers the reader into self-assembly instead of implementation help.
+- For automation and bot topics, prefer wording like "готовое решение под задачу", "внедрение под ключ", "бот под ваш процесс", "можно прийти за разбором и сборкой решения".
 - If manual brief is present, treat it as the main source of intent and build the post around it.
 - Respect the requested content direction and do not force everything into practical business advice.
 - Prefer Russia/CIS-relevant examples by default. Do not rely on Netflix/Spotify/YouTube-style examples as everyday use cases unless they are clearly framed as global context.

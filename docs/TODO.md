@@ -98,3 +98,20 @@ Current focus additions:
   - move long generation/publish jobs to a durable worker/queue
   - clean corrupted docs/UI strings only with encoding-safe tooling
   - keep deploy verification after every code change
+
+## Session 2026-04-27 Follow-Up
+
+- Review regenerated Dzen materials in UI and tighten CTA wording so they more clearly lead to:
+  - audit / discovery call
+  - bot production
+  - implementation under the client's workflow
+- Remove remaining bad semantic anchors from legacy Dzen items where needed:
+  - title
+  - angle
+  - keywords
+  - manual brief
+- Keep automation-topic generation away from:
+  - constructors
+  - no-code DIY
+  - first-person fake experience
+  - self-assembly advice

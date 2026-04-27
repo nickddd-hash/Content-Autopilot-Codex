@@ -226,3 +226,47 @@ Likely next tasks:
 - Improve prompt quality for detailed practical posts, e.g. AI model comparisons: Gemini, Claude, DeepSeek, ChatGPT, etc.
 - Consider moving generation/publishing jobs to a more durable background worker instead of lightweight in-process tasks.
 - Later, carefully clean corrupted docs/strings if needed, but only with encoding-safe tooling.
+
+## Session 2026-04-27 Stop Point
+
+- Dzen is now implemented as a second real project channel.
+- Dzen channel supports mode:
+  - `auto`
+  - `post`
+  - `article`
+- Existing plans can now be extended by selected channels only, instead of acting like a brand new plan every time.
+- Scheduling is now parallel by channel signature:
+  - Telegram-only and Dzen-only materials can share the same dates.
+- The right-side `Адаптации по каналам` block is hidden from the main item UI.
+- Generated user-facing text is cleaned from obvious markdown junk.
+
+Critical editorial rule added:
+
+- For automation / bot topics, do not drift into:
+  - DIY
+  - no-code / constructors
+  - fake first-person founder stories
+  - self-assembly tutorials
+- Default framing must lead toward the author's implementation help:
+  - bot production
+  - automation under the client's task
+  - done-for-you setup
+
+Important caution:
+
+- If an item already has a bad semantic anchor in:
+  - title
+  - angle
+  - keywords
+  - manual brief
+  then prompt fixes alone may not be enough.
+- In that case, clean the item inputs first and only then regenerate.
+
+Next continuation point:
+
+- Review Dzen materials in UI after regeneration.
+- Strengthen Dzen CTA wording toward:
+  - audit / discovery call
+  - bot production
+  - implementation under the client's workflow
+- Then continue with broader multi-channel plan UX.

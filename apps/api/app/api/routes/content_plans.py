@@ -30,6 +30,7 @@ from app.schemas.content_plan import (
 from app.schemas.job_run import JobRunRead, StartGenerationResponse
 from app.services.generation import build_content_plan_item_detail, start_manual_generation, validate_status_transition
 from app.services.media_generator import generate_illustration_for_item, save_uploaded_illustration_for_item
+from app.services.channel_profiles import resolve_dzen_format_mode
 from app.services.plan_execution import (
     build_plan_materials,
     cancel_plan_pipeline_job,
@@ -48,7 +49,7 @@ def _plan_query() -> object:
     return (
         select(ContentPlan)
         .options(selectinload(ContentPlan.items))
-        .options(selectinload(ContentPlan.product))
+        .options(selectinload(ContentPlan.product).selectinload(Product.channels))
         .order_by(ContentPlan.created_at.desc())
     )
 
@@ -317,6 +318,7 @@ async def create_quick_post(
     selected_channels = [channel for channel in payload.channel_targets if channel in available_channels]
     if not selected_channels:
         selected_channels = list(available_channels)
+    dzen_format_mode = resolve_dzen_format_mode(plan.product)
 
     item = ContentPlanItem(
         plan_id=plan_id,
@@ -333,6 +335,7 @@ async def create_quick_post(
             "content_direction": content_direction,
             "channel_targets": selected_channels,
             "include_illustration": payload.include_illustration,
+            "dzen_format_mode": dzen_format_mode,
         },
         article_review={
             "creation_mode": "quick_post",
@@ -502,6 +505,7 @@ async def run_content_plan_pipeline(
         generate_items=options.generate_items,
         theme_override=options.theme,
         num_items_override=options.num_items,
+        channel_targets_override=options.channel_targets,
     )
 
 

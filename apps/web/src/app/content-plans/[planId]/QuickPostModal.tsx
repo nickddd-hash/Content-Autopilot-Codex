@@ -29,6 +29,7 @@ const DIRECTION_OPTIONS: Array<{ value: ContentDirection; label: string; descrip
 function formatChannelLabel(channel: string) {
   const normalized = channel.toLowerCase();
   if (normalized === "telegram") return "Telegram";
+  if (normalized === "dzen") return "Дзен";
   if (normalized === "blog") return "Блог";
   if (normalized === "vk") return "VK";
   return channel;

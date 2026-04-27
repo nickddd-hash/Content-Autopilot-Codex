@@ -22,6 +22,7 @@ type Product = {
 function prettifyChannel(channel: string) {
   const labels: Record<string, string> = {
     blog: "Блог",
+    dzen: "Дзен",
     telegram: "Telegram",
     instagram: "Instagram",
     youtube: "YouTube",

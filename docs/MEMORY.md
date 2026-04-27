@@ -177,6 +177,35 @@
   - goal is calendar on the left, posts for selected day on the right
   - editing publication date should stay inside the post page, not inside the plan page
 
+## Session 2026-04-27
+
+- Dzen was added as a real second project channel with channel-specific generation.
+- Dzen channel now supports content mode:
+  - `auto`
+  - `post`
+  - `article`
+- In `auto` mode:
+  - `news / opinion / critical` lean to `dzen_post`
+  - `practical / educational` lean to `dzen_article`
+- Plan generation now supports explicit channel selection for newly added materials:
+  - connected channels checkboxes
+  - `all channels`
+- Existing plan can now be extended channel-specifically instead of acting like a brand new plan every time.
+- Scheduling was changed from one global queue to grouped parallel queues by channel signature.
+  - Result: Telegram-only and Dzen-only materials can share the same publication dates in parallel.
+- The noisy right-column block `Адаптации по каналам` is hidden from the main item UI.
+- User-facing text normalization now strips obvious markdown noise:
+  - headings `#`
+  - bold markers `**`
+  - bullet asterisks
+- Important content rule added for automation topics:
+  - do not send readers into no-code/DIY/constructors by default
+  - do not invent first-person stories like `I use`, `my favorite tools`, `I am not a programmer`
+  - default commercial framing must lead toward the author's implementation help, bot production and done-for-you automation
+- One bad Dzen item about `constructors / my experience / no-code` exposed this risk.
+  - Prompt was hardened globally against that drift.
+  - Existing Dzen materials were regenerated after the rule change.
+
 ## Session 2026-04-26 Memory
 
 Stop state:

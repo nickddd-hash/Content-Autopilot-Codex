@@ -79,6 +79,7 @@ function getStatusLabel(status: string) {
 function prettifyChannel(channel: string) {
   const labels: Record<string, string> = {
     blog: "Блог",
+    dzen: "Дзен",
     telegram: "Telegram",
     instagram: "Instagram",
     youtube: "YouTube",
@@ -822,7 +823,7 @@ export default async function ContentPlanItemPage({
             </div>
           </article>
 
-          {Object.keys(channelAdaptations).length > 0 ? (
+          {false && Object.keys(channelAdaptations).length > 0 ? (
             <article className="panel">
               <div className="panel-header" style={{ marginBottom: "12px" }}>
                 <span className="panel-kicker">Адаптации по каналам</span>

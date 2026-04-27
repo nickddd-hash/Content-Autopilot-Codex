@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { patchJson, postJson } from "@/lib/api";
 
@@ -11,6 +11,7 @@ type PlanGenerationControlsProps = {
   initialTheme: string | null;
   initialAutoGenerateIllustrations: boolean;
   isJobActive: boolean;
+  availableChannels: string[];
 };
 
 type JobResponse = {
@@ -18,23 +19,49 @@ type JobResponse = {
   status: string;
 };
 
+const CHANNEL_LABELS: Record<string, string> = {
+  telegram: "Telegram",
+  dzen: "Дзен",
+  vk: "VK",
+  blog: "Блог",
+  instagram: "Instagram",
+  youtube: "YouTube",
+};
+
+function normalizeChannel(channel: string) {
+  return channel.trim().toLowerCase();
+}
+
+function prettifyChannel(channel: string) {
+  return CHANNEL_LABELS[channel] || channel;
+}
+
 export default function PlanGenerationControls({
   planId,
   initialMonth,
   initialTheme,
   initialAutoGenerateIllustrations,
   isJobActive,
+  availableChannels,
 }: PlanGenerationControlsProps) {
   const router = useRouter();
+  const normalizedChannels = useMemo(
+    () => [...new Set(availableChannels.map(normalizeChannel).filter(Boolean))],
+    [availableChannels],
+  );
+
   const [month, setMonth] = useState(initialMonth);
   const [theme, setTheme] = useState(initialTheme ?? "");
   const [generationTheme, setGenerationTheme] = useState("");
   const [numItems, setNumItems] = useState("");
   const [autoGenerateIllustrations, setAutoGenerateIllustrations] = useState(initialAutoGenerateIllustrations);
+  const [selectedChannels, setSelectedChannels] = useState<string[]>(normalizedChannels);
   const [isSaving, setIsSaving] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [message, setMessage] = useState("");
+
+  const allChannelsSelected = normalizedChannels.length > 0 && normalizedChannels.every((channel) => selectedChannels.includes(channel));
 
   async function savePlanSettings() {
     const cleanTheme = theme.trim();
@@ -46,6 +73,14 @@ export default function PlanGenerationControls({
       },
     });
     return cleanTheme;
+  }
+
+  function toggleChannel(channel: string) {
+    setSelectedChannels((current) => (current.includes(channel) ? current.filter((item) => item !== channel) : [...current, channel]));
+  }
+
+  function toggleAllChannels() {
+    setSelectedChannels(allChannelsSelected ? [] : normalizedChannels);
   }
 
   async function handleSaveSettings() {
@@ -62,14 +97,14 @@ export default function PlanGenerationControls({
     }
   }
 
-  async function handleCreatePlan(event: React.FormEvent<HTMLFormElement>) {
+  async function handleGenerateMaterials(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
 
-    const firstConfirm = window.confirm("Добавить новые посты в основной контент-план? Это может занять несколько минут.");
+    const firstConfirm = window.confirm("Добавить новые материалы в текущий контент-план?");
     if (!firstConfirm) return;
 
-    const secondConfirm = window.confirm("Точно запускаем? Новые темы, посты, иллюстрации и расписание добавятся в текущий план.");
+    const secondConfirm = window.confirm("Точно запускаем? Новые материалы будут добавлены в этот же план.");
     if (!secondConfirm) return;
 
     setIsStarting(true);
@@ -83,9 +118,10 @@ export default function PlanGenerationControls({
         generate_items: true,
         theme: cleanGenerationTheme || null,
         num_items: parsedNumItems !== undefined && Number.isFinite(parsedNumItems) && parsedNumItems > 0 ? parsedNumItems : null,
+        channel_targets: selectedChannels,
       });
 
-      setMessage("Генерация запущена. Новые посты добавятся в этот план.");
+      setMessage("Генерация запущена. Новые материалы будут добавлены в этот план.");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Не удалось запустить генерацию.");
@@ -95,7 +131,7 @@ export default function PlanGenerationControls({
   }
 
   async function handleStopGeneration() {
-    const confirmed = window.confirm("Остановить текущую генерацию контент-плана?");
+    const confirmed = window.confirm("Остановить текущую генерацию?");
     if (!confirmed) return;
 
     setIsStopping(true);
@@ -112,7 +148,7 @@ export default function PlanGenerationControls({
   }
 
   return (
-    <form onSubmit={handleCreatePlan} style={{ display: "grid", gap: "16px" }}>
+    <form onSubmit={handleGenerateMaterials} style={{ display: "grid", gap: "16px" }}>
       <div style={{ display: "grid", gap: "16px", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="form-label">Месяц</label>
@@ -123,7 +159,7 @@ export default function PlanGenerationControls({
           <input
             type="text"
             className="form-input"
-            placeholder="Например: AI без сложности - апрель"
+            placeholder="Например: Общеобразовательный"
             value={theme}
             onChange={(event) => setTheme(event.target.value)}
           />
@@ -147,16 +183,44 @@ export default function PlanGenerationControls({
         <input
           type="text"
           className="form-input"
-          placeholder="Например: 5 постов про AI для архитекторов. Можно оставить пустым."
+          placeholder="Например: 5 постов про AI для Дзена. Можно оставить пустым."
           value={generationTheme}
           onChange={(event) => setGenerationTheme(event.target.value)}
         />
       </div>
 
+      {normalizedChannels.length > 0 ? (
+        <div
+          style={{
+            display: "grid",
+            gap: "10px",
+            padding: "14px 16px",
+            border: "1px solid var(--border)",
+            borderRadius: "14px",
+            background: "rgba(255,255,255,0.55)",
+          }}
+        >
+          <strong>Каналы для новых материалов</strong>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+              <input type="checkbox" checked={allChannelsSelected} onChange={toggleAllChannels} />
+              <span>Все каналы</span>
+            </label>
+
+            {normalizedChannels.map((channel) => (
+              <label key={channel} style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                <input type="checkbox" checked={selectedChannels.includes(channel)} onChange={() => toggleChannel(channel)} />
+                <span>{prettifyChannel(channel)}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <label
         style={{
           display: "flex",
-          alignItems: "flex-start",
+          alignItems: "center",
           gap: "10px",
           padding: "14px 16px",
           border: "1px solid var(--border)",
@@ -169,14 +233,8 @@ export default function PlanGenerationControls({
           type="checkbox"
           checked={autoGenerateIllustrations}
           onChange={(event) => setAutoGenerateIllustrations(event.target.checked)}
-          style={{ marginTop: "3px" }}
         />
-        <span>
-          <strong>Генерировать иллюстрации сразу</strong>
-          <span className="form-hint" style={{ display: "block", marginTop: "4px" }}>
-            По умолчанию выключено: посты будут учитывать место под иллюстрацию, но картинки можно создать вручную позже.
-          </span>
-        </span>
+        <span>Генерировать иллюстрации сразу</span>
       </label>
 
       <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap" }}>
@@ -187,8 +245,8 @@ export default function PlanGenerationControls({
         <button type="button" className="btn" onClick={handleStopGeneration} disabled={!isJobActive || isStopping}>
           {isStopping ? "Останавливаем..." : "Остановить генерацию"}
         </button>
-        <button type="submit" className="btn btn-primary" disabled={isStarting || isJobActive}>
-          {isStarting ? "Добавляем..." : "Добавить посты в план"}
+        <button type="submit" className="btn btn-primary" disabled={isStarting || isJobActive || selectedChannels.length === 0}>
+          {isStarting ? "Запускаем..." : "Сгенерировать материалы"}
         </button>
       </div>
     </form>

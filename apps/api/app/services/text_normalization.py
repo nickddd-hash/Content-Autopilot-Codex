@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 
 _MOJIBAKE_MARKERS = (
     "\u00d0",
@@ -65,11 +67,16 @@ def repair_common_mojibake(value: str) -> str:
 
 def normalize_user_facing_text(value: str) -> str:
     repaired = repair_common_mojibake(value)
-    return (
+    cleaned = (
         repaired.replace("\u0432\u20ac\u201d", "-")
         .replace("\u0432\u20ac\u201c", "-")
         .replace("\u2014", "-")
         .replace("\u2013", "-")
         .replace("\u00A0", " ")
-        .strip()
     )
+    cleaned = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", cleaned)
+    cleaned = re.sub(r"(?m)^\s*\*\s+", "- ", cleaned)
+    cleaned = cleaned.replace("**", "").replace("__", "")
+    cleaned = re.sub(r"(?<!\w)\*(?=\S)|(?<=\S)\*(?!\w)", "", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()

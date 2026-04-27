@@ -19,6 +19,8 @@ type ProductContentSettings = {
   autopilot_enabled: boolean;
   social_posting_enabled: boolean;
   articles_per_month: number;
+  publish_days: number[];
+  publish_time_utc: string;
 };
 
 type ProductChannel = {
@@ -104,6 +106,40 @@ async function toggleAutopostAction(formData: FormData) {
   revalidatePath("/");
 }
 
+function detectSchedulePreset(days: number[] | undefined) {
+  const normalized = [...new Set((days || []).map(Number))].sort((a, b) => a - b).join(",");
+  if (normalized === "1,2,3,4,5,6,7") return "daily";
+  if (normalized === "1,2,3,4,5") return "weekdays";
+  if (normalized === "1,3,5") return "three";
+  if (normalized === "2,4,6") return "alternate";
+  return "daily";
+}
+
+function resolveScheduleDays(preset: string) {
+  if (preset === "weekdays") return [1, 2, 3, 4, 5];
+  if (preset === "three") return [1, 3, 5];
+  if (preset === "alternate") return [2, 4, 6];
+  return [1, 2, 3, 4, 5, 6, 7];
+}
+
+async function savePublishingSettingsAction(formData: FormData) {
+  "use server";
+  const productId = String(formData.get("productId"));
+  const schedulePreset = String(formData.get("schedulePreset") || "daily");
+  const publishTimeUtc = String(formData.get("publishTimeUtc") || "07:00").slice(0, 5);
+  const rawArticlesPerMonth = Number(formData.get("articlesPerMonth") || 30);
+  const articlesPerMonth = Number.isFinite(rawArticlesPerMonth) ? Math.max(1, Math.min(60, rawArticlesPerMonth)) : 30;
+
+  await patchJson(`/products/${productId}/settings`, {
+    articles_per_month: articlesPerMonth,
+    publish_days: resolveScheduleDays(schedulePreset),
+    publish_time_utc: publishTimeUtc,
+  });
+
+  revalidatePath(`/products/${productId}`);
+  revalidatePath("/");
+}
+
 export default async function ProductPage({ params }: ProductPageProps) {
   const { id: productId } = await params;
 
@@ -120,6 +156,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const mainPlan = productPlans.find((plan) => plan.settings_json?.is_main) ?? productPlans[0] ?? null;
   const secondaryPlans = productPlans.filter((plan) => plan.id !== mainPlan?.id);
   const autopostEnabled = Boolean(product.content_settings?.autopilot_enabled && product.content_settings?.social_posting_enabled);
+  const schedulePreset = detectSchedulePreset(product.content_settings?.publish_days);
 
   return (
     <>
@@ -185,6 +222,67 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <SubmitButton className="btn" pendingLabel="Сохраняем режим...">
                 Сохранить режим
               </SubmitButton>
+            </form>
+
+            <form
+              action={savePublishingSettingsAction}
+              style={{
+                display: "grid",
+                gap: "14px",
+                padding: "16px 18px",
+                marginBottom: "20px",
+                borderRadius: "16px",
+                border: "1px solid var(--border)",
+                background: "rgba(255,255,255,0.03)",
+              }}
+            >
+              <input type="hidden" name="productId" value={productId} />
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                <strong style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                  <span>Частота публикаций</span>
+                  <HelpHint text="Эта настройка влияет на календарь плана и автопостинг. Для старта лучше публиковаться минимум раз в день." />
+                </strong>
+              </div>
+
+              <div style={{ display: "grid", gap: "14px", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+                <label style={{ display: "grid", gap: "8px" }}>
+                  <span className="form-label">Режим</span>
+                  <select name="schedulePreset" className="form-select" defaultValue={schedulePreset}>
+                    <option value="daily">Каждый день</option>
+                    <option value="weekdays">Только будни</option>
+                    <option value="three">3 раза в неделю</option>
+                    <option value="alternate">Через день</option>
+                  </select>
+                </label>
+
+                <label style={{ display: "grid", gap: "8px" }}>
+                  <span className="form-label">Постов в месяц</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={60}
+                    name="articlesPerMonth"
+                    className="form-input"
+                    defaultValue={product.content_settings?.articles_per_month ?? 30}
+                  />
+                </label>
+
+                <label style={{ display: "grid", gap: "8px" }}>
+                  <span className="form-label">Время публикации UTC</span>
+                  <input
+                    type="time"
+                    name="publishTimeUtc"
+                    className="form-input"
+                    defaultValue={product.content_settings?.publish_time_utc ?? "07:00"}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <SubmitButton className="btn" pendingLabel="Сохраняем частоту...">
+                  Сохранить частоту
+                </SubmitButton>
+              </div>
             </form>
 
             <div className="list-container" style={{ marginBottom: "20px" }}>

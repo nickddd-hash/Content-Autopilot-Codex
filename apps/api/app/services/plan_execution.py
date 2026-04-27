@@ -49,6 +49,16 @@ def _parse_publish_time(value: str | None) -> time:
         return time(hour=7, minute=0, tzinfo=timezone.utc)
 
 
+def _channel_signature(item: ContentPlanItem) -> str:
+    research_data = item.research_data if isinstance(item.research_data, dict) else {}
+    raw_targets = research_data.get("channel_targets")
+    if isinstance(raw_targets, list):
+        normalized = sorted({str(target).strip().lower() for target in raw_targets if str(target).strip()})
+        if normalized:
+            return "|".join(normalized)
+    return "telegram"
+
+
 def _build_schedule_slots(
     *,
     count: int,
@@ -146,16 +156,21 @@ async def build_plan_materials(session: AsyncSession, plan_id: UUID) -> list[dic
     autopost_enabled = bool(content_settings and content_settings.autopilot_enabled and content_settings.social_posting_enabled)
     schedulable_items = [item for item in ordered_items if item.published_at is None and item.status != "archived"]
     if schedulable_items and content_settings is not None:
-        schedule_slots = _build_schedule_slots(
-            count=len(schedulable_items),
-            publish_days=content_settings.publish_days,
-            publish_time_utc=content_settings.publish_time_utc,
-            start_at=datetime.now(timezone.utc),
-        )
-        for item, slot in zip(schedulable_items, schedule_slots, strict=False):
-            item.scheduled_at = slot
-            if autopost_enabled and item.status == "draft":
-                item.status = "review-ready"
+        groups: dict[str, list[ContentPlanItem]] = {}
+        for item in schedulable_items:
+            groups.setdefault(_channel_signature(item), []).append(item)
+
+        for group_items in groups.values():
+            schedule_slots = _build_schedule_slots(
+                count=len(group_items),
+                publish_days=content_settings.publish_days,
+                publish_time_utc=content_settings.publish_time_utc,
+                start_at=datetime.now(timezone.utc),
+            )
+            for item, slot in zip(group_items, schedule_slots, strict=False):
+                item.scheduled_at = slot
+                if autopost_enabled and item.status == "draft":
+                    item.status = "review-ready"
 
     plan_settings["needs_reschedule"] = False
     plan_settings["reschedule_reason"] = None
@@ -174,6 +189,7 @@ async def _run_plan_pipeline_job(
     generate_items: bool,
     theme_override: str | None,
     num_items_override: int | None,
+    channel_targets_override: list[str] | None,
 ) -> None:
     async with AsyncSessionLocal() as session:
         job = await session.get(JobRun, job_id)
@@ -192,6 +208,7 @@ async def _run_plan_pipeline_job(
                     plan_id,
                     theme_override=theme_override,
                     num_items_override=num_items_override,
+                    channel_targets_override=channel_targets_override,
                 )
             built_items = await build_plan_materials(session, plan_id)
 
@@ -245,6 +262,7 @@ async def start_plan_pipeline_job(
     generate_items: bool = False,
     theme_override: str | None = None,
     num_items_override: int | None = None,
+    channel_targets_override: list[str] | None = None,
 ) -> JobRun:
     plan = await _get_plan_with_product(session, plan_id)
     active_statement = (
@@ -273,6 +291,7 @@ async def start_plan_pipeline_job(
             "generate_items": generate_items,
             "theme_override": theme_override,
             "num_items_override": num_items_override,
+            "channel_targets_override": channel_targets_override or [],
         },
     )
     session.add(job)
@@ -286,6 +305,7 @@ async def start_plan_pipeline_job(
             generate_items=generate_items,
             theme_override=theme_override,
             num_items_override=num_items_override,
+            channel_targets_override=channel_targets_override,
         )
     )
     _ACTIVE_PLAN_PIPELINE_TASKS[job.id] = task

@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models import BrandProfile, ContentPlan, ContentPlanItem, Product
 from app.schemas.content_plan import PLAN_DIRECTION_KEYS
+from app.services.channel_profiles import resolve_dzen_format_mode
 from app.services.llm_client import LLMClientError, generate_json
 
 DEFAULT_CONTENT_MIX: dict[str, int] = {
@@ -324,11 +325,13 @@ async def generate_plan_items_for_plan(
     plan_id: uuid.UUID,
     theme_override: str | None = None,
     num_items_override: int | None = None,
+    channel_targets_override: list[str] | None = None,
 ) -> list[ContentPlanItem]:
     plan_statement = (
         select(ContentPlan)
         .where(ContentPlan.id == plan_id)
         .options(selectinload(ContentPlan.product).selectinload(Product.content_settings))
+        .options(selectinload(ContentPlan.product).selectinload(Product.channels))
         .options(selectinload(ContentPlan.items))
     )
     plan = await session.scalar(plan_statement)
@@ -338,6 +341,10 @@ async def generate_plan_items_for_plan(
     brand_profile = await session.scalar(select(BrandProfile).limit(1))
     settings = plan.product.content_settings
     num_items = num_items_override or (settings.articles_per_month if settings else 4)
+    selected_channels = [str(channel).strip().lower() for channel in (channel_targets_override or []) if str(channel).strip()]
+    if not selected_channels:
+        selected_channels = list(plan.product.primary_channels or ["telegram"])
+    dzen_format_mode = resolve_dzen_format_mode(plan.product)
 
     messages = build_plan_generation_messages(
         plan.product,
@@ -384,8 +391,9 @@ async def generate_plan_items_for_plan(
             status="planned",
             research_data={
                 "content_direction": direction,
-                "channel_targets": list(plan.product.primary_channels or ["telegram"]),
+                "channel_targets": selected_channels,
                 "include_illustration": True,
+                "dzen_format_mode": dzen_format_mode,
             },
         )
         session.add(item)
@@ -415,6 +423,7 @@ async def generate_rewrite_items_from_ingested(
         select(ContentPlan)
         .where(ContentPlan.id == plan_id)
         .options(selectinload(ContentPlan.product).selectinload(Product.content_settings))
+        .options(selectinload(ContentPlan.product).selectinload(Product.channels))
         .options(selectinload(ContentPlan.items))
     )
     plan = await session.scalar(plan_statement)
@@ -434,6 +443,7 @@ async def generate_rewrite_items_from_ingested(
     brand_name = brand_profile.brand_name if brand_profile and brand_profile.brand_name else plan.product.name
 
     new_items: list[ContentPlanItem] = []
+    dzen_format_mode = resolve_dzen_format_mode(plan.product)
 
     for index, ingested in enumerate(ingested_items):
         angle = (
@@ -455,6 +465,7 @@ async def generate_rewrite_items_from_ingested(
                 "raw": ingested.raw_data,
                 "channel_targets": list(plan.product.primary_channels or ["telegram"]),
                 "include_illustration": True,
+                "dzen_format_mode": dzen_format_mode,
             },
         )
         session.add(item)
