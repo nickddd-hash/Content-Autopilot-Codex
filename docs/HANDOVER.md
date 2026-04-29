@@ -270,3 +270,11 @@ Next continuation point:
   - bot production
   - implementation under the client's workflow
 - Then continue with broader multi-channel plan UX.
+
+## Session 2026-04-29 Stop Point
+
+- Content-plan page right column was refactored into grouped publication slots.
+- Same-time materials for different channels should appear under one date/time slot instead of as a flat appended list.
+- This was done as a small targeted patch in:
+  - `apps/web/src/app/content-plans/[planId]/page.tsx`
+- Local `next build` still cannot be run on this machine because `next` is unavailable locally; verify by server deploy/render when continuing.

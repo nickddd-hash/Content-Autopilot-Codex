@@ -246,3 +246,9 @@ Operational reminders:
 - Docs-only commits do not need deploy.
 - Use small targeted frontend patches; avoid broad rewrites of plan/item pages because encoding issues have happened before.
 - If testing generation, remember that immediate illustration generation can spend extra provider tokens.
+
+## Session 2026-04-29 Memory
+
+- Content-plan right panel is now grouped by publication slot instead of a flat list.
+- If Telegram and Dzen materials share the same scheduled time, they should render inside one slot card on the right.
+- Keep this grouped-slot UX and do not fall back to appending Dzen items to the tail of the plan list.

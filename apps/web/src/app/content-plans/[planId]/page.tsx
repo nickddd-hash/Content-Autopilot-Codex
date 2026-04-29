@@ -174,12 +174,58 @@ function channelTitle(channel: string) {
   return CHANNEL_TITLES[channel] || channel;
 }
 
+function channelSortWeight(channel: string) {
+  const weights: Record<string, number> = {
+    telegram: 10,
+    dzen: 20,
+    blog: 30,
+    vk: 40,
+    instagram: 50,
+    youtube: 60,
+  };
+  return weights[channel] ?? 999;
+}
+
 function sortPlanItems(left: ContentPlanItem, right: ContentPlanItem) {
   const leftDate = left.scheduled_at ? String(left.scheduled_at) : "9999";
   const rightDate = right.scheduled_at ? String(right.scheduled_at) : "9999";
   const dateCompare = leftDate.localeCompare(rightDate);
   if (dateCompare !== 0) return dateCompare;
   return left.order - right.order;
+}
+
+function groupPlanItemsBySlot(items: ContentPlanItem[], productChannels: string[]) {
+  const groups = new Map<
+    string,
+    {
+      slotKey: string;
+      slotLabel: string;
+      items: Array<ContentPlanItem & { normalizedChannels: string[] }>;
+    }
+  >();
+
+  for (const item of [...items].sort(sortPlanItems)) {
+    const slotKey = item.scheduled_at ? String(item.scheduled_at) : `unscheduled-${item.id}`;
+    const slotLabel = item.scheduled_at ? formatScheduledLabel(item.scheduled_at) : "Без даты";
+    const normalizedChannels = getItemChannels(item, productChannels).sort(
+      (left, right) => channelSortWeight(left) - channelSortWeight(right) || left.localeCompare(right),
+    );
+    const group = groups.get(slotKey) ?? { slotKey, slotLabel, items: [] };
+    group.items.push({ ...item, normalizedChannels });
+    groups.set(slotKey, group);
+  }
+
+  return [...groups.values()].map((group) => ({
+    ...group,
+    items: group.items.sort((left, right) => {
+      const leftChannel = left.normalizedChannels[0] ?? "";
+      const rightChannel = right.normalizedChannels[0] ?? "";
+      const compare =
+        channelSortWeight(leftChannel) - channelSortWeight(rightChannel) || leftChannel.localeCompare(rightChannel);
+      if (compare !== 0) return compare;
+      return left.order - right.order;
+    }),
+  }));
 }
 
 function getDominantDirection(
@@ -380,6 +426,7 @@ export default async function ContentPlanPage({
   const selectedDay = day || null;
   const selectedDayItems = selectedDay ? scheduledItemsByDay.get(selectedDay) ?? [] : [];
   const rightPanelItems = [...(selectedDay ? selectedDayItems : visibleItems)].sort(sortPlanItems);
+  const rightPanelGroups = groupPlanItemsBySlot(rightPanelItems, productChannels);
 
   return (
     <>
@@ -620,26 +667,44 @@ export default async function ContentPlanPage({
 
               {rightPanelItems.length ? (
                 <div className="list-container">
-                  {rightPanelItems.map((item) => {
-                    const itemChannels = getItemChannels(item, productChannels);
-
+                  {rightPanelGroups.map((group) => {
                     return (
-                      <div key={item.id} className="list-item compact-list-item">
+                      <section
+                        key={group.slotKey}
+                        style={{
+                          border: "1px solid var(--border)",
+                          borderRadius: "16px",
+                          padding: "14px 16px",
+                          background: "rgba(255,255,255,0.76)",
+                        }}
+                      >
                         <div style={{ minWidth: 0 }}>
-                          <div className="list-item-sub">{item.scheduled_at ? formatScheduledLabel(item.scheduled_at) : "Без даты"}</div>
-                          <Link href={`/content-plans/${plan.id}/items/${item.id}`} className="list-item-title item-link" style={{ textDecoration: "none" }}>
-                            {item.title}
-                          </Link>
-                          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" }}>
-                            {itemChannels.map((channel) => (
-                              <span key={`${item.id}-${channel}`} className="badge badge-outline" style={{ padding: "5px 8px", fontSize: "0.68rem" }}>
-                                {channelLabel(channel)}
-                              </span>
-                            ))}
+                          <div className="list-item-sub" style={{ marginBottom: "10px" }}>
+                            {group.slotLabel}
                           </div>
+                          {group.items.map((item, index) => (
+                            <div
+                              key={item.id}
+                              style={{
+                                paddingTop: index ? "12px" : 0,
+                                marginTop: index ? "12px" : 0,
+                                borderTop: index ? "1px solid rgba(31, 44, 39, 0.08)" : "none",
+                              }}
+                            >
+                              <Link href={`/content-plans/${plan.id}/items/${item.id}`} className="list-item-title item-link" style={{ textDecoration: "none" }}>
+                                {item.title}
+                              </Link>
+                              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" }}>
+                                {item.normalizedChannels.map((channel) => (
+                                  <span key={`${item.id}-${channel}`} className="badge badge-outline" style={{ padding: "5px 8px", fontSize: "0.68rem" }}>
+                                    {channelLabel(channel)}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        <span className={getBadgeClass(item.status)}>{statusLabel(item.status)}</span>
-                      </div>
+                      </section>
                     );
                   })}
                 </div>
