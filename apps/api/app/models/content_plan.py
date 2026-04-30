@@ -66,3 +66,15 @@ class ContentPlanItem(UUIDPrimaryKeyMixin, TimestampMixin, NamedStatusMixin, Bas
     plan: Mapped["ContentPlan"] = relationship(back_populates="items")
     costs: Mapped[list["ContentCost"]] = relationship(back_populates="content_plan_item")
     job_runs: Mapped[list["JobRun"]] = relationship(back_populates="content_plan_item")
+
+    @property
+    def generated_draft_title(self) -> str | None:
+        if not isinstance(self.research_data, dict):
+            return None
+        generation_payload = self.research_data.get("generation_payload")
+        if not isinstance(generation_payload, dict):
+            return None
+        draft_title = generation_payload.get("draft_title")
+        if isinstance(draft_title, str) and draft_title.strip():
+            return draft_title.strip()
+        return None

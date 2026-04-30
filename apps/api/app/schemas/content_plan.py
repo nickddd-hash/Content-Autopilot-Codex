@@ -27,8 +27,7 @@ class ContentMixSettings(BaseModel):
 
 class ContentPlanSettings(BaseModel):
     content_mix: ContentMixSettings = Field(default_factory=ContentMixSettings)
-    is_main: bool = False
-    auto_generate_illustrations: bool = False
+    auto_generate_illustrations: bool = True
     needs_reschedule: bool = False
     reschedule_reason: str | None = None
     reschedule_source_item_id: UUID | None = None
@@ -39,6 +38,7 @@ class ContentPlanItemRead(ORMModel):
     plan_id: UUID
     order: int
     title: str
+    generated_draft_title: str | None = None
     angle: str | None
     target_keywords: list[str]
     article_type: str
@@ -129,10 +129,6 @@ class ContentPlanCreate(BaseModel):
     items: list[ContentPlanItemCreate] = Field(default_factory=list)
 
 
-class MainContentPlanPayload(BaseModel):
-    product_id: UUID
-
-
 class ContentPlanUpdate(BaseModel):
     month: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}$")
     theme: str | None = Field(default=None, max_length=255)
@@ -174,7 +170,6 @@ class RunPlanPipelinePayload(BaseModel):
     generate_items: bool = False
     theme: str | None = Field(default=None, max_length=255)
     num_items: int | None = Field(default=None, ge=1, le=30)
-    channel_targets: list[str] = Field(default_factory=list)
 
 
 class QuickPostPayload(BaseModel):

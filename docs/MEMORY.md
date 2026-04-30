@@ -177,78 +177,10 @@
   - goal is calendar on the left, posts for selected day on the right
   - editing publication date should stay inside the post page, not inside the plan page
 
-## Session 2026-04-27
+## Session 2026-04-30
 
-- Dzen was added as a real second project channel with channel-specific generation.
-- Dzen channel now supports content mode:
-  - `auto`
-  - `post`
-  - `article`
-- In `auto` mode:
-  - `news / opinion / critical` lean to `dzen_post`
-  - `practical / educational` lean to `dzen_article`
-- Plan generation now supports explicit channel selection for newly added materials:
-  - connected channels checkboxes
-  - `all channels`
-- Existing plan can now be extended channel-specifically instead of acting like a brand new plan every time.
-- Scheduling was changed from one global queue to grouped parallel queues by channel signature.
-  - Result: Telegram-only and Dzen-only materials can share the same publication dates in parallel.
-- The noisy right-column block `Адаптации по каналам` is hidden from the main item UI.
-- User-facing text normalization now strips obvious markdown noise:
-  - headings `#`
-  - bold markers `**`
-  - bullet asterisks
-- Important content rule added for automation topics:
-  - do not send readers into no-code/DIY/constructors by default
-  - do not invent first-person stories like `I use`, `my favorite tools`, `I am not a programmer`
-  - default commercial framing must lead toward the author's implementation help, bot production and done-for-you automation
-- One bad Dzen item about `constructors / my experience / no-code` exposed this risk.
-  - Prompt was hardened globally against that drift.
-  - Existing Dzen materials were regenerated after the rule change.
-
-## Session 2026-04-26 Memory
-
-Stop state:
-
-- Work is on `main` in `C:\Users\nickd\.gemini\antigravity\scratch\Content-Autopilot-Codex`.
-- Production is `https://content.flowsmart.ru` on server `82.21.72.233`, remote path `/opt/athena-content`.
-- Latest deployed code commit before this docs handover is `2dd301e fix: compact schedule after manual publish`.
-- Production responded successfully after deploy: site `200`, health `{"status":"ok"}`.
-
-Implemented and deployed:
-
-- Explicit content-plan creation flow: product page opens plan settings instead of generating immediately.
-- Double confirmation before actual generation.
-- Stop/cancel generation button and backend cancel endpoint.
-- Editable plan title.
-- One main content plan per product. New generated posts are appended into that plan.
-- Optional illustration generation for plan generation, default off.
-- Posts still assume an illustration slot by default even when image generation is skipped.
-- Archived posts are excluded from visible active counters.
-- Image generation button moved into the visual block.
-- Draft text regeneration now has a user comment/notes field.
-- RU/CIS localization was added to prompts so examples fit Russian-speaking users first.
-- Top draft `Regenerate post` button was removed to reduce duplicate actions.
-- Manual `Publish now` now compacts the future schedule by shifting later unpublished posts into the freed slot.
-
-Important user/business context:
-
-- User is Nikolay, not Nikita.
-- Blog/channel name chosen: `AI bez slozhnosti`.
-- The blog is broad, not for technical AI people.
-- Core audience: people in Russia/CIS who have heard about AI and automation, are interested in theory, but postpone action or wait until someone trusted shows them a simple path.
-- Also include unexpected adjacent audiences: astrologers, architects, freelancers, small experts, small business owners, consultants, and people who could benefit from automation but do not know what to ask for yet.
-- Tone: simple, practical, calm, friendly, without technical show-off.
-
-Operational reminders:
-
-- Deploy after code changes unless the user explicitly says not to.
-- Docs-only commits do not need deploy.
-- Use small targeted frontend patches; avoid broad rewrites of plan/item pages because encoding issues have happened before.
-- If testing generation, remember that immediate illustration generation can spend extra provider tokens.
-
-## Session 2026-04-29 Memory
-
-- Content-plan right panel is now grouped by publication slot instead of a flat list.
-- If Telegram and Dzen materials share the same scheduled time, they should render inside one slot card on the right.
-- Keep this grouped-slot UX and do not fall back to appending Dzen items to the tail of the plan list.
+- Practical content generation must now contain concrete examples, concrete scenarios and specific applied details.
+- Plan generation now tries to avoid repeating or lightly rephrasing topics used during roughly the last 30 days for the same product.
+- If duplicate filtering removes too many generated items, the backend tops the plan up with fallback topics that are also checked against recent-topic similarity.
+- The plan page now has a safe title fallback for broken data:
+  - if `item.title` looks corrupted like `???`, use `generated_draft_title` if it is clean.

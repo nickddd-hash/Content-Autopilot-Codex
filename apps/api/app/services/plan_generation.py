@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -10,7 +12,6 @@ from sqlalchemy.orm import selectinload
 
 from app.models import BrandProfile, ContentPlan, ContentPlanItem, Product
 from app.schemas.content_plan import PLAN_DIRECTION_KEYS
-from app.services.channel_profiles import resolve_dzen_format_mode
 from app.services.llm_client import LLMClientError, generate_json
 
 DEFAULT_CONTENT_MIX: dict[str, int] = {
@@ -42,6 +43,71 @@ def _join_lines(values: list[str]) -> str:
     if not values:
         return "not specified"
     return "\n".join(f"- {value}" for value in values)
+
+
+def _normalize_topic_text(value: str) -> str:
+    normalized = value.lower().replace("ё", "е")
+    normalized = re.sub(r"[^a-zа-я0-9\s]", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized
+
+
+def _topic_signature(value: str) -> set[str]:
+    stop_words = {
+        "и",
+        "в",
+        "во",
+        "на",
+        "по",
+        "с",
+        "со",
+        "к",
+        "ко",
+        "о",
+        "об",
+        "от",
+        "до",
+        "для",
+        "про",
+        "как",
+        "что",
+        "это",
+        "или",
+        "но",
+        "не",
+        "из",
+        "у",
+        "ai",
+    }
+    return {
+        token
+        for token in _normalize_topic_text(value).split()
+        if len(token) > 2 and token not in stop_words
+    }
+
+
+def _is_topic_too_similar(candidate: str, existing_signatures: list[set[str]]) -> bool:
+    candidate_signature = _topic_signature(candidate)
+    if not candidate_signature:
+        return False
+    for signature in existing_signatures:
+        if not signature:
+            continue
+        overlap = len(candidate_signature & signature)
+        if overlap >= min(3, len(candidate_signature), len(signature)):
+            return True
+        union = len(candidate_signature | signature)
+        if union and overlap / union >= 0.6:
+            return True
+    return False
+
+
+def _collect_recent_topic_signatures(items: list[ContentPlanItem]) -> list[set[str]]:
+    signatures: list[set[str]] = []
+    for item in items:
+        if item.title:
+            signatures.append(_topic_signature(item.title))
+    return [signature for signature in signatures if signature]
 
 
 def _normalize_content_mix(raw_settings: dict[str, Any] | None) -> dict[str, int]:
@@ -229,6 +295,7 @@ def build_plan_generation_messages(
     plan: ContentPlan,
     num_items: int = 8,
     theme_override: str | None = None,
+    recent_topics: list[str] | None = None,
 ) -> list[dict[str, str]]:
     brand_name = brand_profile.brand_name if brand_profile and brand_profile.brand_name else product.name
     brand_summary = (
@@ -241,15 +308,13 @@ def build_plan_generation_messages(
     mix = _normalize_content_mix(getattr(plan, "settings_json", None))
     direction_targets = _build_mix_summary(mix, num_items)
     direction_hints = "\n".join(f"- {key}: {DIRECTION_HINTS[key]}" for key in PLAN_DIRECTION_KEYS if mix.get(key, 0) > 0)
+    recent_topics_block = _join_lines(recent_topics or [])
 
     system_prompt = f"""
 You are a senior content strategist for a personal content autopilot.
 Your job is to generate a list of {num_items} structured content plan items for a given month and theme.
 Focus on creating high-signal, practical, understandable, varied topics that align with the brand and product.
 Do not collapse every topic into business automation. Keep a healthy mix of practical, educational, news, opinion and critical topics when requested.
-Default geography and context: Russia and CIS.
-Use examples, daily scenarios, platforms and constraints that make sense for readers in Russia and CIS.
-Western/global services such as Netflix, Spotify, YouTube, Notion, Google products, OpenAI products and similar may be mentioned when discussing global trends, model capabilities or international cases, but do not present them as the default everyday services or primary practical recommendations for the audience unless the brief explicitly asks for that.
 
 Return valid JSON with this exact shape:
 {{
@@ -304,6 +369,9 @@ Requested content mix:
 Direction guidance:
 {direction_hints}
 
+Topics already used during the last month:
+{recent_topics_block}
+
 Requirements:
 - Generate {num_items} distinct items.
 - Follow the requested mix approximately.
@@ -311,7 +379,8 @@ Requirements:
 - Explain AI in simple human language.
 - Avoid making every item about business efficiency.
 - Keep titles specific and easy to understand.
-- Prefer Russia/CIS-relevant examples by default. Do not rely on Netflix/Spotify/YouTube-style examples as everyday use cases unless they are clearly framed as global context.
+- Do not repeat or slightly rephrase topics that were already used during the last month.
+- If the direction is practical, make the topic concrete enough to imply real examples, real tasks or a specific applied scenario.
 """.strip()
 
     return [
@@ -325,13 +394,11 @@ async def generate_plan_items_for_plan(
     plan_id: uuid.UUID,
     theme_override: str | None = None,
     num_items_override: int | None = None,
-    channel_targets_override: list[str] | None = None,
 ) -> list[ContentPlanItem]:
     plan_statement = (
         select(ContentPlan)
         .where(ContentPlan.id == plan_id)
         .options(selectinload(ContentPlan.product).selectinload(Product.content_settings))
-        .options(selectinload(ContentPlan.product).selectinload(Product.channels))
         .options(selectinload(ContentPlan.items))
     )
     plan = await session.scalar(plan_statement)
@@ -341,10 +408,24 @@ async def generate_plan_items_for_plan(
     brand_profile = await session.scalar(select(BrandProfile).limit(1))
     settings = plan.product.content_settings
     num_items = num_items_override or (settings.articles_per_month if settings else 4)
-    selected_channels = [str(channel).strip().lower() for channel in (channel_targets_override or []) if str(channel).strip()]
-    if not selected_channels:
-        selected_channels = list(plan.product.primary_channels or ["telegram"])
-    dzen_format_mode = resolve_dzen_format_mode(plan.product)
+    recent_cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    recent_items_result = await session.execute(
+        select(ContentPlanItem)
+        .join(ContentPlan, ContentPlanItem.plan_id == ContentPlan.id)
+        .where(ContentPlan.product_id == plan.product_id)
+    )
+    all_product_items = list(recent_items_result.scalars().all())
+    recent_items: list[ContentPlanItem] = []
+    for existing_item in all_product_items:
+        timestamps = [
+            value
+            for value in [existing_item.published_at, existing_item.scheduled_at, existing_item.created_at]
+            if isinstance(value, datetime)
+        ]
+        if timestamps and max(timestamps) >= recent_cutoff:
+            recent_items.append(existing_item)
+    recent_topics = [item.title for item in recent_items if item.title]
+    recent_signatures = _collect_recent_topic_signatures(recent_items)
 
     messages = build_plan_generation_messages(
         plan.product,
@@ -352,6 +433,7 @@ async def generate_plan_items_for_plan(
         plan,
         num_items,
         theme_override=theme_override,
+        recent_topics=recent_topics,
     )
 
     try:
@@ -373,6 +455,9 @@ async def generate_plan_items_for_plan(
     for index, data in enumerate(items_data):
         if not isinstance(data, dict):
             continue
+        title = str(data.get("title") or f"Generated Item {index + 1}").strip()
+        if _is_topic_too_similar(title, recent_signatures):
+            continue
 
         raw_keywords = data.get("target_keywords", [])
         target_keywords = raw_keywords if isinstance(raw_keywords, list) else []
@@ -382,8 +467,8 @@ async def generate_plan_items_for_plan(
 
         item = ContentPlanItem(
             plan_id=plan.id,
-            order=starting_order + index + 1,
-            title=str(data.get("title") or f"Generated Item {index + 1}"),
+            order=starting_order + len(new_items) + 1,
+            title=title,
             angle=str(data.get("angle") or ""),
             target_keywords=[str(keyword) for keyword in target_keywords if keyword],
             article_type=str(data.get("article_type") or direction),
@@ -391,13 +476,50 @@ async def generate_plan_items_for_plan(
             status="planned",
             research_data={
                 "content_direction": direction,
-                "channel_targets": selected_channels,
+                "channel_targets": list(plan.product.primary_channels or []),
                 "include_illustration": True,
-                "dzen_format_mode": dzen_format_mode,
             },
         )
         session.add(item)
         new_items.append(item)
+        recent_signatures.append(_topic_signature(title))
+
+    if len(new_items) < num_items:
+        fallback_items = _build_fallback_plan_items(
+            plan.product,
+            plan,
+            num_items,
+            theme_override=theme_override,
+        )
+        for data in fallback_items:
+            if len(new_items) >= num_items:
+                break
+            title = str(data.get("title") or "").strip()
+            if not title or _is_topic_too_similar(title, recent_signatures):
+                continue
+            raw_keywords = data.get("target_keywords", [])
+            target_keywords = raw_keywords if isinstance(raw_keywords, list) else []
+            direction = str(data.get("content_direction") or "educational").lower().strip()
+            if direction not in PLAN_DIRECTION_KEYS:
+                direction = "educational"
+            item = ContentPlanItem(
+                plan_id=plan.id,
+                order=starting_order + len(new_items) + 1,
+                title=title,
+                angle=str(data.get("angle") or ""),
+                target_keywords=[str(keyword) for keyword in target_keywords if keyword],
+                article_type=str(data.get("article_type") or direction),
+                cta_type=str(data.get("cta_type") or "soft"),
+                status="planned",
+                research_data={
+                    "content_direction": direction,
+                    "channel_targets": list(plan.product.primary_channels or []),
+                    "include_illustration": True,
+                },
+            )
+            session.add(item)
+            new_items.append(item)
+            recent_signatures.append(_topic_signature(title))
 
     if not new_items:
         raise HTTPException(
@@ -423,7 +545,6 @@ async def generate_rewrite_items_from_ingested(
         select(ContentPlan)
         .where(ContentPlan.id == plan_id)
         .options(selectinload(ContentPlan.product).selectinload(Product.content_settings))
-        .options(selectinload(ContentPlan.product).selectinload(Product.channels))
         .options(selectinload(ContentPlan.items))
     )
     plan = await session.scalar(plan_statement)
@@ -443,7 +564,6 @@ async def generate_rewrite_items_from_ingested(
     brand_name = brand_profile.brand_name if brand_profile and brand_profile.brand_name else plan.product.name
 
     new_items: list[ContentPlanItem] = []
-    dzen_format_mode = resolve_dzen_format_mode(plan.product)
 
     for index, ingested in enumerate(ingested_items):
         angle = (
@@ -460,13 +580,7 @@ async def generate_rewrite_items_from_ingested(
             article_type="rewrite",
             cta_type="soft",
             status="planned",
-            research_data={
-                "ingested_content_id": str(ingested.id),
-                "raw": ingested.raw_data,
-                "channel_targets": list(plan.product.primary_channels or ["telegram"]),
-                "include_illustration": True,
-                "dzen_format_mode": dzen_format_mode,
-            },
+            research_data={"ingested_content_id": str(ingested.id), "raw": ingested.raw_data},
         )
         session.add(item)
         new_items.append(item)
