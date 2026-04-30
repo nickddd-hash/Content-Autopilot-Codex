@@ -129,6 +129,10 @@ class ContentPlanCreate(BaseModel):
     items: list[ContentPlanItemCreate] = Field(default_factory=list)
 
 
+class MainContentPlanPayload(BaseModel):
+    product_id: UUID
+
+
 class ContentPlanUpdate(BaseModel):
     month: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}$")
     theme: str | None = Field(default=None, max_length=255)
