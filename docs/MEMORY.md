@@ -184,3 +184,20 @@
 - If duplicate filtering removes too many generated items, the backend tops the plan up with fallback topics that are also checked against recent-topic similarity.
 - The plan page now has a safe title fallback for broken data:
   - if `item.title` looks corrupted like `???`, use `generated_draft_title` if it is clean.
+
+## Session 2026-05-03 Channel Strategy
+
+- Added detailed channel strategy context in `docs/SESSION_2026-05-03_CHANNEL_STRATEGY.md`.
+- Keep `AI bez slozhnosti`, but make the channel business-oriented: AI, bots, automation and content systems for small business and experts.
+- Do not turn the channel into a dry IT-services showcase. Use a human expert voice and practical business situations.
+- Content mix should be broad but business-centered:
+  - business automation situations
+  - simple AI tricks
+  - AI news explained through practical value
+  - personal/backstage observations
+  - soft offers and mini-audits
+- Prompts should check:
+  - who recognizes themselves in the post
+  - what illusion is removed
+  - why the reader should come to Nikolay instead of doing it themselves
+- Add a future research layer for realistic business cases, small-business pains, trends and examples.

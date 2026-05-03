@@ -185,3 +185,12 @@
 - If duplicate filtering leaves the plan short, fallback topics are appended but still pass the same similarity check.
 - Plan page has a display fallback for broken titles:
   - `generated_draft_title` can replace a visibly corrupted `item.title` in the plan list.
+
+## Session 2026-05-03 Stop Point
+
+- Channel strategy discussion saved in `docs/SESSION_2026-05-03_CHANNEL_STRATEGY.md`.
+- Marketing recommendation: shift `AI bez slozhnosti` toward business and lead generation.
+- Decision: accept business focus, but keep the simple/human brand instead of becoming a dry IT-services channel.
+- Product implication: content plans should mix publication roles instead of producing only daily business cases.
+- Prompt implication: every business-facing post should reveal a recognizable situation, remove an illusion and lead toward Nikolay's audit/implementation help.
+- Future feature idea: add a research layer for automation cases, small-business pains, trends, and rejected-topic memory.

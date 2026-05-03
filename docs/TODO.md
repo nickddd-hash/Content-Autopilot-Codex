@@ -115,3 +115,14 @@ Current focus additions:
   - no-code DIY
   - first-person fake experience
   - self-assembly advice
+
+## Session 2026-05-03 Follow-Up
+
+- Update global/content-plan prompts using `docs/SESSION_2026-05-03_CHANNEL_STRATEGY.md`.
+- Add business-centered content mix logic instead of generating only one type of business case.
+- Add prompt checks:
+  - who recognizes themselves
+  - what illusion is removed
+  - why the reader should come to Nikolay
+- Add or design research layer for practical automation/business examples.
+- Later add rejected-topic memory and analytics feedback into planning.
