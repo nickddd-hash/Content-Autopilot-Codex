@@ -51,6 +51,10 @@ const VIDEO_MODEL_OPTIONS = [
   { value: "google/veo-3.1-fast", label: "OpenRouter · Veo 3.1 Fast" },
 ];
 
+function getSecretPlaceholder(value: string) {
+  return value ? "Ключ сохранен. Введите новый, чтобы заменить." : "Введите ключ";
+}
+
 async function saveSettingsAction(formData: FormData) {
   "use server";
 
@@ -111,8 +115,8 @@ export default async function SettingsPage() {
                 name="OPENAI_API_KEY"
                 type="password"
                 className="form-input"
-                defaultValue={getValue("OPENAI_API_KEY")}
-                placeholder="Ключ OpenAI"
+                defaultValue=""
+                placeholder={getSecretPlaceholder(getValue("OPENAI_API_KEY"))}
               />
             </div>
 
@@ -126,8 +130,8 @@ export default async function SettingsPage() {
                 name="OPENROUTER_API_KEY"
                 type="password"
                 className="form-input"
-                defaultValue={getValue("OPENROUTER_API_KEY")}
-                placeholder="Ключ OpenRouter"
+                defaultValue=""
+                placeholder={getSecretPlaceholder(getValue("OPENROUTER_API_KEY"))}
               />
             </div>
 
@@ -141,8 +145,8 @@ export default async function SettingsPage() {
                 name="KIE_AI_API_KEY"
                 type="password"
                 className="form-input"
-                defaultValue={getValue("KIE_AI_API_KEY")}
-                placeholder="Ключ KIE"
+                defaultValue=""
+                placeholder={getSecretPlaceholder(getValue("KIE_AI_API_KEY"))}
               />
             </div>
           </div>
