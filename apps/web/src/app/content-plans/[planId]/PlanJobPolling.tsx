@@ -11,7 +11,6 @@ function statusText(status: string) {
     pending: "В очереди",
     completed: "Завершено",
     failed: "Ошибка",
-    cancelled: "Остановлено",
   };
 
   return labels[status] || status;
@@ -52,7 +51,7 @@ export default function PlanJobPolling({
       if (!nextJob) return;
 
       setJob(nextJob);
-      if (nextJob.status === "completed" || nextJob.status === "failed" || nextJob.status === "cancelled") {
+      if (nextJob.status === "completed" || nextJob.status === "failed") {
         if (intervalId) clearInterval(intervalId);
         router.refresh();
       }
@@ -70,12 +69,11 @@ export default function PlanJobPolling({
     };
   }, [job?.status, planId, router]);
 
-  if (!job || (job.status !== "running" && job.status !== "pending" && job.status !== "failed" && job.status !== "cancelled")) {
+  if (!job || (job.status !== "running" && job.status !== "pending" && job.status !== "failed")) {
     return null;
   }
 
   const isFailed = job.status === "failed";
-  const isCancelled = job.status === "cancelled";
 
   return (
     <article
@@ -90,16 +88,14 @@ export default function PlanJobPolling({
           <span className="panel-kicker">Контент-завод</span>
           <h2 className="panel-title">{jobTitle(job.job_type)}</h2>
         </div>
-        <span className={isFailed ? "badge badge-danger" : isCancelled ? "badge badge-outline" : "badge badge-warning"}>{statusText(job.status)}</span>
+        <span className={isFailed ? "badge badge-danger" : "badge badge-warning"}>{statusText(job.status)}</span>
       </div>
       <p className="form-hint" style={{ marginTop: "10px" }}>
-        {isCancelled
-          ? "Генерация остановлена вручную."
-          : isFailed
+        {isFailed
           ? job.error_message || "Сборка плана завершилась с ошибкой."
           : "Страница обновится автоматически, когда сборка плана закончится."}
       </p>
-      {!isFailed && !isCancelled ? (
+      {!isFailed ? (
         <div style={{ width: "100%", height: "8px", background: "rgba(255,255,255,0.1)", borderRadius: "4px", overflow: "hidden", marginTop: "12px" }}>
           <div
             style={{

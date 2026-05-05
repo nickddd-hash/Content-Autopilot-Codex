@@ -35,6 +35,11 @@ class ContentPlan(UUIDPrimaryKeyMixin, Base):
         order_by="ContentPlanItem.order",
     )
     job_runs: Mapped[list["JobRun"]] = relationship(back_populates="content_plan")
+    research_links: Mapped[list["PlanResearchLink"]] = relationship(
+        back_populates="content_plan",
+        cascade="all, delete-orphan",
+    )
+    topic_memory_entries: Mapped[list["TopicMemory"]] = relationship(back_populates="content_plan")
 
 
 class ContentPlanItem(UUIDPrimaryKeyMixin, TimestampMixin, NamedStatusMixin, Base):

@@ -3,6 +3,34 @@ from __future__ import annotations
 from app.models import BrandProfile, ContentPlan, ContentPlanItem, Product
 from app.schemas.content_plan import PLAN_DIRECTION_KEYS
 
+BASE_STRATEGY_RULES = """
+Core product strategy:
+- This content is for entrepreneurs, experts, marketers and small business owners in Russia/CIS who heard about AI but do not clearly understand how it applies to their business.
+- The job of the post is to translate AI into recognizable business situations, pains, manual processes and practical opportunities.
+- The content should move the reader from abstract interest toward a concrete next step: a free AI business audit/helper that asks 7 short questions and returns a diagnosis, 3 automation priorities, a quick win, suitable tools and an approximate ROI.
+- The writer voice should feel like a practical translator between AI and business, not like a hype commentator or generic AI educator.
+""".strip()
+
+BASE_ANTI_RULES = """
+What must not appear by default:
+- DIY framing like "build it yourself tonight"
+- no-code/constructor evangelism as the main answer
+- fake first-person stories or invented personal experience
+- broad AI hype with no recognizable business situation
+- abstract advice with no concrete process, task or consequence
+- technical overload, stack talk and jargon for non-technical readers
+- aggressive selling, empty motivation or consultant cliches
+- western tools as the everyday default for Russia/CIS unless there is a clear reason
+""".strip()
+
+POST_CONSTRUCTION_RULES = """
+How to construct the post:
+- Start from a recognizable business pain or situation, not from a tool, release or hype topic.
+- Identify where the problem shows up in the business process.
+- Use the tool, AI release, case or innovation only as a fresh angle on that business pain.
+- Repeated pains are allowed, but the post must add new value through a new solution, new audience angle, new process angle, new limitation, new case or new implementation model.
+""".strip()
+
 
 def _join_lines(values: list[str]) -> str:
     if not values:
@@ -142,6 +170,9 @@ You are a senior content strategist and writer for a personal content autopilot.
 Your job is to produce a high-quality first draft package for one content plan item.
 The output must be practical, specific, human-sounding, and useful.
 Avoid generic AI filler, vague motivation, repetitive advice, bloated article structure and obvious AI phrasing patterns.
+{BASE_STRATEGY_RULES}
+{BASE_ANTI_RULES}
+{POST_CONSTRUCTION_RULES}
 
 {channel_instruction}
 {direction_instruction}
@@ -245,6 +276,12 @@ Requirements:
 - If manual brief is present, treat it as the main source of intent and build the post around it.
 - Respect the requested content direction and do not force everything into practical business advice.
 - If the direction is practical, include concrete examples and specific scenarios, not just general recommendations.
+- Make the reader recognize themselves in the situation whenever possible.
+- Show what is actually broken: time loss, lead loss, routine, chaos, weak handoffs, poor follow-up or missing system.
+- If you mention AI, bots or automation, connect them to a concrete business process, not to abstract tool enthusiasm.
+- Prefer soft CTAs that lead to diagnosis, audit, consultation or implementation help, not to self-assembly.
+- Do not suggest that a random prompt alone solves the business problem if the real issue is process, data, CRM, logic or follow-up.
+- Do not start the post from the tool itself. Start from the recognizable business situation and use the tool, release, case or innovation only as the practical angle.
 """.strip()
 
     return [

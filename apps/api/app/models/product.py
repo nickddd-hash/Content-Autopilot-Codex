@@ -44,6 +44,18 @@ class Product(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     content_plans: Mapped[list["ContentPlan"]] = relationship(back_populates="product")
     blog_posts: Mapped[list["BlogPost"]] = relationship(back_populates="product")
     job_runs: Mapped[list["JobRun"]] = relationship(back_populates="product")
+    research_sources: Mapped[list["ResearchSource"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
+    research_candidates: Mapped[list["ResearchCandidate"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
+    topic_memory_entries: Mapped[list["TopicMemory"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
 
 
 class ProductContentSettings(UUIDPrimaryKeyMixin, TimestampMixin, Base):

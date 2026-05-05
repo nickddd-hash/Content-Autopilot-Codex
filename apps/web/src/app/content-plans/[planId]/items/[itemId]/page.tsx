@@ -6,8 +6,6 @@ import SubmitButton from "@/components/SubmitButton";
 import { apiBaseUrl, fetchJson, patchJson, postJson, statusLabel } from "@/lib/api";
 import JobPolling from "./JobPolling";
 
-export const dynamic = "force-dynamic";
-
 type ChannelAdaptation = {
   format?: string;
   content_markdown?: string;
@@ -79,7 +77,6 @@ function getStatusLabel(status: string) {
 function prettifyChannel(channel: string) {
   const labels: Record<string, string> = {
     blog: "Блог",
-    dzen: "Дзен",
     telegram: "Telegram",
     instagram: "Instagram",
     youtube: "YouTube",
@@ -161,7 +158,6 @@ async function regenerateDraftAction(formData: FormData) {
   const path = `/content-plans/${planId}/items/${itemId}`;
   const draftTitle = normalizeEditorialText(String(formData.get("draftTitle") || ""));
   const draftMarkdown = normalizeEditorialText(String(formData.get("draftMarkdown") || ""));
-  const regenerationNotes = normalizeEditorialText(String(formData.get("regenerationNotes") || ""));
 
   const current = await fetchJson<ContentPlanItemDetail | null>(`/content-plans/${planId}/items/${itemId}`, null);
   if (!current) {
@@ -175,13 +171,7 @@ async function regenerateDraftAction(formData: FormData) {
       ? { ...(researchData.generation_payload as Record<string, unknown>) }
       : {};
 
-  const manualBrief = buildManualBriefFromDraft(draftTitle, draftMarkdown);
-  researchData.manual_brief = [
-    manualBrief,
-    regenerationNotes ? `Author regeneration instructions:\n${regenerationNotes}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  researchData.manual_brief = buildManualBriefFromDraft(draftTitle, draftMarkdown);
   researchData.generation_payload = {
     ...currentPayload,
     draft_title: draftTitle,
@@ -432,18 +422,25 @@ export default async function ContentPlanItemPage({
           </p>
         </div>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          {canGenerate && item.status !== "draft" ? (
+          {canGenerate ? (
             <form action={startGenerationAction}>
               <input type="hidden" name="planId" value={planId} />
               <input type="hidden" name="itemId" value={itemId} />
               <SubmitButton
                 className="btn btn-primary"
-                pendingLabel="Генерируем пост..."
+                pendingLabel={item.status === "draft" ? "Перегенерируем пост..." : "Генерируем пост..."}
               >
-                Сгенерировать пост
+                {item.status === "draft" ? "Перегенерировать пост" : "Сгенерировать пост"}
               </SubmitButton>
             </form>
           ) : null}
+          <form action={generateIllustrationAction}>
+            <input type="hidden" name="planId" value={planId} />
+            <input type="hidden" name="itemId" value={itemId} />
+            <SubmitButton className="btn" pendingLabel="Генерируем иллюстрацию...">
+              {generatedImageUrl ? "Перегенерировать иллюстрацию" : "Сгенерировать иллюстрацию"}
+            </SubmitButton>
+          </form>
           {false ? (
             <form action={updateStatusAction}>
               <input type="hidden" name="planId" value={planId} />
@@ -551,17 +548,8 @@ export default async function ContentPlanItemPage({
 
           <article className="panel">
             <div className="panel-header">
-              <div>
-                <span className="panel-kicker">Визуал</span>
-                <h2 className="panel-title">Иллюстрация</h2>
-              </div>
-              <form action={generateIllustrationAction}>
-                <input type="hidden" name="planId" value={planId} />
-                <input type="hidden" name="itemId" value={itemId} />
-                <SubmitButton className="btn" pendingLabel="Генерируем иллюстрацию...">
-                  {generatedImageUrl ? "Перегенерировать иллюстрацию" : "Сгенерировать иллюстрацию"}
-                </SubmitButton>
-              </form>
+              <span className="panel-kicker">Визуал</span>
+              <h2 className="panel-title">Иллюстрация</h2>
             </div>
 
             {generatedImageUrl ? (
@@ -698,16 +686,6 @@ export default async function ContentPlanItemPage({
                   Длинные тире при сохранении автоматически заменяются на короткие, чтобы текст выглядел живее и менее
                   шаблонно.
                 </p>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Комментарий для перегенерации</label>
-                  <textarea
-                    name="regenerationNotes"
-                    className="form-input"
-                    rows={4}
-                    placeholder="Например: сделай подробнее, сравни Gemini, Claude, DeepSeek и ChatGPT, объясни кто в чем силен, без общих фраз."
-                    style={{ resize: "vertical" }}
-                  />
-                </div>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", flexWrap: "wrap" }}>
                   <button type="submit" formAction={regenerateDraftAction} className="btn">
                     Перегенерировать текст
@@ -823,7 +801,7 @@ export default async function ContentPlanItemPage({
             </div>
           </article>
 
-          {false && Object.keys(channelAdaptations).length > 0 ? (
+          {Object.keys(channelAdaptations).length > 0 ? (
             <article className="panel">
               <div className="panel-header" style={{ marginBottom: "12px" }}>
                 <span className="panel-kicker">Адаптации по каналам</span>

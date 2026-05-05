@@ -23,13 +23,13 @@ type ProductChannelsPanelProps = {
   initialChannels: ProductChannel[];
 };
 
-type PlatformKey = "telegram" | "vk" | "dzen";
+type PlatformKey = "telegram" | "vk";
 
 type PlatformConfig = {
   label: string;
   defaultName: string;
   secrets: Array<{ key: string; label: string; type?: string; placeholder: string }>;
-  settings: Array<{ key: string; label: string; placeholder?: string; options?: Array<{ value: string; label: string }> }>;
+  settings: Array<{ key: string; label: string; placeholder: string }>;
 };
 
 const PLATFORM_CONFIGS: Record<PlatformKey, PlatformConfig> = {
@@ -44,24 +44,6 @@ const PLATFORM_CONFIGS: Record<PlatformKey, PlatformConfig> = {
     defaultName: "VK",
     secrets: [{ key: "access_token", label: "Access token", type: "password", placeholder: "vk1.a...." }],
     settings: [{ key: "group_id", label: "Group ID", placeholder: "123456789" }],
-  },
-  dzen: {
-    label: "Дзен",
-    defaultName: "Дзен",
-    secrets: [],
-    settings: [
-      { key: "channel_url", label: "Channel URL", placeholder: "https://dzen.ru/..." },
-      { key: "rss_url", label: "RSS URL", placeholder: "https://example.ru/feed.xml" },
-      {
-        key: "content_mode",
-        label: "Формат материалов",
-        options: [
-          { value: "auto", label: "Авто" },
-          { value: "post", label: "Посты" },
-          { value: "article", label: "Статьи" },
-        ],
-      },
-    ],
   },
 };
 
@@ -106,29 +88,14 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-function makeEmptySecrets(platform: PlatformKey) {
-  return Object.fromEntries(PLATFORM_CONFIGS[platform].secrets.map((field) => [field.key, ""]));
-}
-
-function makeSettings(platform: PlatformKey, channel?: ProductChannel) {
-  return Object.fromEntries(
-    PLATFORM_CONFIGS[platform].settings.map((field) => [
-      field.key,
-      String(channel?.settings_json?.[field.key] ?? (field.options?.[0]?.value ?? "")),
-    ]),
-  );
-}
-
 export default function ProductChannelsPanel({ productId, initialChannels }: ProductChannelsPanelProps) {
   const [channels, setChannels] = useState(initialChannels);
-  const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [platform, setPlatform] = useState<PlatformKey>("telegram");
   const [name, setName] = useState(PLATFORM_CONFIGS.telegram.defaultName);
-  const [secrets, setSecrets] = useState<Record<string, string>>(makeEmptySecrets("telegram"));
-  const [settings, setSettings] = useState<Record<string, string>>(makeSettings("telegram"));
+  const [secrets, setSecrets] = useState<Record<string, string>>({ bot_token: "" });
+  const [settings, setSettings] = useState<Record<string, string>>({ chat_id: "" });
   const [error, setError] = useState<string | null>(null);
   const [pendingText, setPendingText] = useState<string | null>(null);
-  const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const platformConfig = PLATFORM_CONFIGS[platform];
@@ -136,64 +103,35 @@ export default function ProductChannelsPanel({ productId, initialChannels }: Pro
     () => channels.find((channel) => channel.platform === platform),
     [channels, platform],
   );
-  const editingChannel = useMemo(
-    () => channels.find((channel) => channel.id === editingChannelId) ?? null,
-    [channels, editingChannelId],
-  );
+  const isPlatformLocked = existingChannel?.validation_status === "valid";
 
   function switchPlatform(nextPlatform: PlatformKey) {
     const config = PLATFORM_CONFIGS[nextPlatform];
-    const channel = editingChannelId ? channels.find((item) => item.id === editingChannelId) : channels.find((item) => item.platform === nextPlatform);
+    const channel = channels.find((item) => item.platform === nextPlatform);
     setPlatform(nextPlatform);
     setName(channel?.name || config.defaultName);
-    setSecrets(makeEmptySecrets(nextPlatform));
-    setSettings(makeSettings(nextPlatform, channel));
+    setSecrets(Object.fromEntries(config.secrets.map((field) => [field.key, ""])));
+    setSettings(
+      Object.fromEntries(config.settings.map((field) => [field.key, String(channel?.settings_json?.[field.key] ?? "")])),
+    );
     setError(null);
-  }
-
-  function openComposer(nextPlatform: PlatformKey = "telegram", channelId: string | null = null) {
-    setEditingChannelId(channelId);
-    setIsComposerOpen(true);
-    setPlatform(nextPlatform);
-    const channel = channelId ? channels.find((item) => item.id === channelId) ?? undefined : undefined;
-    const config = PLATFORM_CONFIGS[nextPlatform];
-    setName(channel?.name || config.defaultName);
-    setSecrets(makeEmptySecrets(nextPlatform));
-    setSettings(makeSettings(nextPlatform, channel));
-    setError(null);
-    setPendingText(null);
-  }
-
-  function closeComposer() {
-    setIsComposerOpen(false);
-    setEditingChannelId(null);
-    setPlatform("telegram");
-    setName(PLATFORM_CONFIGS.telegram.defaultName);
-    setSecrets(makeEmptySecrets("telegram"));
-    setSettings(makeSettings("telegram"));
-    setError(null);
-    setPendingText(null);
   }
 
   function updateSecret(key: string, value: string) {
     setSecrets((current) => ({ ...current, [key]: value }));
   }
 
-function updateSetting(key: string, value: string) {
+  function updateSetting(key: string, value: string) {
     setSettings((current) => ({ ...current, [key]: value }));
   }
 
-  function formatChannelMode(channel: ProductChannel) {
-    if (channel.platform !== "dzen") return null;
-    const rawMode = String(channel.settings_json?.content_mode || "auto").trim().toLowerCase();
-    if (rawMode === "post") return "Дзен: посты";
-    if (rawMode === "article") return "Дзен: статьи";
-    return "Дзен: авто";
+  function resetForm() {
+    switchPlatform(platform);
   }
 
   function handleCreateChannel() {
     setError(null);
-    setPendingText(editingChannel ? "Обновляем канал..." : "Подключаем канал...");
+    setPendingText(existingChannel ? "Обновляем канал..." : "Подключаем канал...");
 
     startTransition(async () => {
       try {
@@ -202,8 +140,8 @@ function updateSetting(key: string, value: string) {
           secrets,
           settings,
         };
-        const saved = editingChannel
-          ? await requestJson<ProductChannel>(`/api/products/${productId}/channels/${editingChannel.id}`, {
+        const saved = existingChannel
+          ? await requestJson<ProductChannel>(`/api/products/${productId}/channels/${existingChannel.id}`, {
               method: "PATCH",
               body: JSON.stringify(payload),
             })
@@ -223,7 +161,7 @@ function updateSetting(key: string, value: string) {
           const exists = current.some((channel) => channel.id === validated.id);
           return exists ? current.map((channel) => (channel.id === validated.id ? validated : channel)) : [...current, validated];
         });
-        closeComposer();
+        resetForm();
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Не удалось сохранить данные канала.");
       } finally {
@@ -268,9 +206,6 @@ function updateSetting(key: string, value: string) {
           method: "DELETE",
         });
         setChannels((current) => current.filter((channel) => channel.id !== channelId));
-        if (editingChannelId === channelId) {
-          closeComposer();
-        }
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Не удалось удалить канал.");
       } finally {
@@ -292,111 +227,72 @@ function updateSetting(key: string, value: string) {
         <span className="badge badge-accent">{channels.length}</span>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "14px" }}>
-        <button type="button" className="btn btn-primary" onClick={() => openComposer("telegram")} disabled={isPending}>
-          Добавить канал
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.1fr 1fr 1fr auto",
+          gap: "12px",
+          alignItems: "end",
+          marginBottom: "14px",
+        }}
+      >
+        <label style={{ display: "grid", gap: "8px" }}>
+          <span className="form-label">Платформа</span>
+          <select className="form-select" value={platform} onChange={(event) => switchPlatform(event.target.value as PlatformKey)} disabled={isPending}>
+            {Object.entries(PLATFORM_CONFIGS).map(([key, config]) => (
+              <option key={key} value={key}>
+                {config.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label style={{ display: "grid", gap: "8px" }}>
+          <span className="form-label">Название</span>
+          <input className="form-input" value={name} onChange={(event) => setName(event.target.value)} disabled={isPending} />
+        </label>
+
+        {platformConfig.secrets.map((field) => (
+          <label key={field.key} style={{ display: "grid", gap: "8px" }}>
+            <span className="form-label">{field.label}</span>
+            <input
+              className="form-input"
+              type={field.type || "text"}
+              placeholder={field.placeholder}
+              value={secrets[field.key] ?? ""}
+              onChange={(event) => updateSecret(field.key, event.target.value)}
+              disabled={isPending}
+            />
+          </label>
+        ))}
+
+        {platformConfig.settings.map((field) => (
+          <label key={field.key} style={{ display: "grid", gap: "8px" }}>
+            <span className="form-label">{field.label}</span>
+            <input
+              className="form-input"
+              placeholder={field.placeholder}
+              value={settings[field.key] ?? ""}
+              onChange={(event) => updateSetting(field.key, event.target.value)}
+              disabled={isPending}
+            />
+          </label>
+        ))}
+
+        <button type="button" className="btn btn-primary" onClick={handleCreateChannel} disabled={isPending || isPlatformLocked}>
+          {pendingText || (existingChannel ? "Подключить заново" : "Подключить")}
         </button>
       </div>
 
-      {isComposerOpen ? (
-        <div
-          style={{
-            display: "grid",
-            gap: "14px",
-            marginBottom: "14px",
-            padding: "16px",
-            borderRadius: "18px",
-            border: "1px solid var(--border)",
-            background: "rgba(255,255,255,0.04)",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-            <strong>{editingChannel ? "Изменить канал" : "Новый канал"}</strong>
-            <button type="button" className="btn btn-sm" onClick={closeComposer} disabled={isPending}>
-              Закрыть
-            </button>
-          </div>
+      {existingChannel?.validation_status === "invalid" ? (
+        <div className="empty-state compact-empty-state" style={{ marginBottom: "14px", borderColor: "rgba(180, 52, 52, 0.18)" }}>
+          <strong>Связь не установлена</strong>
+        </div>
+      ) : null}
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: "12px",
-              alignItems: "end",
-            }}
-          >
-            <label style={{ display: "grid", gap: "8px" }}>
-              <span className="form-label">Платформа</span>
-              <select
-                className="form-select"
-                value={platform}
-                onChange={(event) => switchPlatform(event.target.value as PlatformKey)}
-                disabled={isPending || editingChannel !== null}
-              >
-                {Object.entries(PLATFORM_CONFIGS).map(([key, config]) => (
-                  <option key={key} value={key}>
-                    {config.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label style={{ display: "grid", gap: "8px" }}>
-              <span className="form-label">Название</span>
-              <input className="form-input" value={name} onChange={(event) => setName(event.target.value)} disabled={isPending} />
-            </label>
-
-            {platformConfig.secrets.map((field) => (
-              <label key={field.key} style={{ display: "grid", gap: "8px" }}>
-                <span className="form-label">{field.label}</span>
-                <input
-                  className="form-input"
-                  type={field.type || "text"}
-                  placeholder={field.placeholder}
-                  value={secrets[field.key] ?? ""}
-                  onChange={(event) => updateSecret(field.key, event.target.value)}
-                  disabled={isPending}
-                />
-              </label>
-            ))}
-
-            {platformConfig.settings.map((field) => (
-              <label key={field.key} style={{ display: "grid", gap: "8px" }}>
-                <span className="form-label">{field.label}</span>
-                {field.options ? (
-                  <select
-                    className="form-select"
-                    value={settings[field.key] ?? field.options[0]?.value ?? ""}
-                    onChange={(event) => updateSetting(field.key, event.target.value)}
-                    disabled={isPending}
-                  >
-                    {field.options.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    className="form-input"
-                    placeholder={field.placeholder}
-                    value={settings[field.key] ?? ""}
-                    onChange={(event) => updateSetting(field.key, event.target.value)}
-                    disabled={isPending}
-                  />
-                )}
-              </label>
-            ))}
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", flexWrap: "wrap" }}>
-            <button type="button" className="btn" onClick={closeComposer} disabled={isPending}>
-              Отмена
-            </button>
-            <button type="button" className="btn btn-primary" onClick={handleCreateChannel} disabled={isPending}>
-              {pendingText || (editingChannel ? "Подключить заново" : "Подключить")}
-            </button>
-          </div>
+      {existingChannel?.validation_status === "valid" ? (
+        <div className="empty-state compact-empty-state" style={{ marginBottom: "14px" }}>
+          <strong>Канал уже подключён</strong>
         </div>
       ) : null}
 
@@ -425,7 +321,6 @@ function updateSetting(key: string, value: string) {
                       {secretKey}
                     </span>
                   ))}
-                  {formatChannelMode(channel) ? <span className="badge badge-outline">{formatChannelMode(channel)}</span> : null}
                 </div>
                 {channel.validation_message ? (
                   <p className="form-hint" style={{ margin: 0 }}>
@@ -437,15 +332,7 @@ function updateSetting(key: string, value: string) {
               <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end", marginLeft: "auto" }}>
                 <span className={badgeClass(channel.validation_status)}>{badgeLabel(channel.validation_status)}</span>
                 <button type="button" className="btn btn-sm" onClick={() => handleValidateChannel(channel.id)} disabled={isPending}>
-                  Проверить
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  onClick={() => openComposer(channel.platform as PlatformKey, channel.id)}
-                  disabled={isPending}
-                >
-                  Изменить
+                  Проверить связь
                 </button>
                 <button
                   type="button"
@@ -454,7 +341,7 @@ function updateSetting(key: string, value: string) {
                   onClick={() => handleDeleteChannel(channel.id, channel.name)}
                   disabled={isPending}
                 >
-                  Удалить
+                  Удалить канал
                 </button>
               </div>
             </div>

@@ -10,16 +10,22 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import BrandProfile, ContentPlan, ContentPlanItem, Product
+from app.models import BrandProfile, ContentPlan, ContentPlanItem, Product, ResearchCandidate
 from app.schemas.content_plan import PLAN_DIRECTION_KEYS
 from app.services.llm_client import LLMClientError, generate_json
+from app.services.research_pipeline import (
+    build_research_candidate_block,
+    collect_research_candidates,
+    link_research_to_item,
+    upsert_topic_memory_for_item,
+)
 
 DEFAULT_CONTENT_MIX: dict[str, int] = {
-    "practical": 40,
-    "educational": 25,
-    "news": 15,
-    "opinion": 10,
-    "critical": 10,
+    "practical": 60,
+    "educational": 20,
+    "news": 10,
+    "opinion": 5,
+    "critical": 5,
 }
 
 DIRECTION_LABELS: dict[str, str] = {
@@ -31,12 +37,57 @@ DIRECTION_LABELS: dict[str, str] = {
 }
 
 DIRECTION_HINTS: dict[str, str] = {
-    "practical": "practical use cases, workflows, savings of time, reduction of chaos, concrete scenarios",
-    "educational": "simple explanation, AI basics, terminology, first principles, public education without jargon",
-    "news": "important AI updates, launches, releases, public developments explained in plain language",
-    "opinion": "author perspective, interpretation, thoughtful viewpoint, what matters and what does not",
-    "critical": "skeptical angle, hype check, limitations, risks, overpromises, what is overrated",
+    "practical": "business situations, automation opportunities, build-in-public cases, workflows, savings of time, reduction of chaos, concrete scenarios",
+    "educational": "simple AI explanation, useful tricks, terminology, first principles, public education without jargon",
+    "news": "important AI updates, launches, releases, public developments explained through practical business value",
+    "opinion": "author perspective, backstage observations, interpretation, thoughtful viewpoint, what matters and what does not",
+    "critical": "skeptical angle, hype check, limitations, risks, overpromises, what is overrated, where AI should not be used",
 }
+
+BASE_STRATEGY_RULES = """
+Core product strategy:
+- This channel is not about AI in general. It is about helping small business owners, experts and small teams understand where AI, bots, CRM and automation are actually useful in their business.
+- The content should act like a translator between AI and real business situations.
+- The content should naturally lead toward a free AI business audit/helper that asks 7 short questions and returns a diagnosis, 3 automation priorities, a quick win, suitable tools and an approximate ROI.
+- The goal is not only reach. The goal is trust, recognition of the business problem and movement toward audit, consultation or implementation.
+""".strip()
+
+BASE_ANTI_RULES = """
+What to avoid by default:
+- dry SEO content written only for traffic
+- generic AI news with no practical takeaway
+- DIY framing like "assemble it yourself in one evening"
+- no-code evangelism as the default answer
+- fake first-person stories or invented experience
+- abstract AI education with no recognizable situation
+- technical overload, jargon and architecture talk for its own sake
+- topics that feel like hype with no link to real business pains
+""".strip()
+
+PAIN_DIVERSITY_AND_RESEARCH_RULES = """
+Topic selection and diversity rules:
+- Repeated business pains are allowed, but repeated framing is not.
+- The same pain may appear again only if there is new value: a new solution, new niche, new process, new trigger, new case or a meaningfully different angle.
+- Do not place more than 2 posts in a row around the same pain cluster.
+- Within any rolling sequence of 5 posts, the same pain cluster should appear no more than 2 times, unless the user explicitly wants a mini-series.
+
+Topic generation order:
+- Start from a recognizable business pain or business situation, not from a tool.
+- Then identify the affected process: leads, follow-up, CRM, content, support, onboarding, internal routine, scheduling or another real workflow.
+- Then research whether there is a fresh signal connected to this pain:
+  - new solution
+  - new tool
+  - new case
+  - new limitation
+  - new implementation pattern
+  - relevant news or release
+- Only then formulate the topic.
+
+News, tools and innovations:
+- A tool, release or AI news item is not a topic by itself.
+- Use tools, releases and innovations as triggers that add a fresh angle to a real business problem.
+- If a topic starts from hype, a tool name or a release without a clear business situation, reformulate it around the real business pain before returning it.
+""".strip()
 
 
 def _join_lines(values: list[str]) -> str:
@@ -296,6 +347,7 @@ def build_plan_generation_messages(
     num_items: int = 8,
     theme_override: str | None = None,
     recent_topics: list[str] | None = None,
+    research_candidates: list[ResearchCandidate] | None = None,
 ) -> list[dict[str, str]]:
     brand_name = brand_profile.brand_name if brand_profile and brand_profile.brand_name else product.name
     brand_summary = (
@@ -309,12 +361,16 @@ def build_plan_generation_messages(
     direction_targets = _build_mix_summary(mix, num_items)
     direction_hints = "\n".join(f"- {key}: {DIRECTION_HINTS[key]}" for key in PLAN_DIRECTION_KEYS if mix.get(key, 0) > 0)
     recent_topics_block = _join_lines(recent_topics or [])
+    research_block = build_research_candidate_block(research_candidates or [])
 
     system_prompt = f"""
 You are a senior content strategist for a personal content autopilot.
 Your job is to generate a list of {num_items} structured content plan items for a given month and theme.
 Focus on creating high-signal, practical, understandable, varied topics that align with the brand and product.
-Do not collapse every topic into business automation. Keep a healthy mix of practical, educational, news, opinion and critical topics when requested.
+Keep the plan business-oriented, but do not collapse every topic into identical automation posts. Keep a healthy mix of practical, educational, news, opinion and critical topics when requested.
+{BASE_STRATEGY_RULES}
+{BASE_ANTI_RULES}
+{PAIN_DIVERSITY_AND_RESEARCH_RULES}
 
 Return valid JSON with this exact shape:
 {{
@@ -325,7 +381,8 @@ Return valid JSON with this exact shape:
       "target_keywords": ["string", "string"],
       "article_type": "string (e.g. educational, checklist, comparison, news, opinion, critical)",
       "cta_type": "string (e.g. soft, hard, none)",
-      "content_direction": "string (one of practical, educational, news, opinion, critical)"
+      "content_direction": "string (one of practical, educational, news, opinion, critical)",
+      "research_candidate_ids": ["uuid string"]
     }}
   ]
 }}
@@ -372,15 +429,28 @@ Direction guidance:
 Topics already used during the last month:
 {recent_topics_block}
 
+Research candidate pool:
+{research_block}
+
 Requirements:
 - Generate {num_items} distinct items.
 - Follow the requested mix approximately.
 - At least some items should be broad educational or public-interest AI topics when educational/news/opinion/critical directions are enabled.
 - Explain AI in simple human language.
-- Avoid making every item about business efficiency.
+- Avoid making every item about generic business efficiency only.
 - Keep titles specific and easy to understand.
 - Do not repeat or slightly rephrase topics that were already used during the last month.
 - If the direction is practical, make the topic concrete enough to imply real examples, real tasks or a specific applied scenario.
+- Practical can include business situations, automation ideas, niche breakdowns and build-in-public style cases.
+- Educational can include simple AI tricks if they are useful for work or business routine.
+- Prioritize topics where the reader can recognize themselves in a real business situation.
+- Prefer topics that expose where time, money, leads or manual effort are being lost.
+- When relevant, make the next natural step a free AI business audit rather than self-assembly.
+- If a topic is about automation, frame it around diagnosis, priorities and implementation help, not around random tools.
+- Do not build the topic from a tool or release first. Build it from the business pain first, then use the tool, release or innovation as the fresh angle.
+- Keep the plan varied across pain clusters so that one familiar pain does not monopolize the next several posts.
+- When the research candidate pool is relevant, ground each topic in one or more candidate IDs from that pool.
+- Prefer candidate-backed topics over unsupported invented novelty.
 """.strip()
 
     return [
@@ -426,6 +496,13 @@ async def generate_plan_items_for_plan(
             recent_items.append(existing_item)
     recent_topics = [item.title for item in recent_items if item.title]
     recent_signatures = _collect_recent_topic_signatures(recent_items)
+    research_candidates = await collect_research_candidates(
+        session,
+        product=plan.product,
+        theme_override=theme_override or plan.theme,
+        limit=max(12, min(num_items * 3, 24)),
+    )
+    research_candidate_map = {str(candidate.id): candidate for candidate in research_candidates}
 
     messages = build_plan_generation_messages(
         plan.product,
@@ -434,6 +511,7 @@ async def generate_plan_items_for_plan(
         num_items,
         theme_override=theme_override,
         recent_topics=recent_topics,
+        research_candidates=research_candidates,
     )
 
     try:
@@ -464,6 +542,39 @@ async def generate_plan_items_for_plan(
         direction = str(data.get("content_direction") or "educational").lower().strip()
         if direction not in PLAN_DIRECTION_KEYS:
             direction = "educational"
+        raw_candidate_ids = data.get("research_candidate_ids", [])
+        candidate_ids: list[uuid.UUID] = []
+        linked_candidates: list[ResearchCandidate] = []
+        if isinstance(raw_candidate_ids, list):
+            for raw_candidate_id in raw_candidate_ids:
+                candidate_id = str(raw_candidate_id).strip()
+                candidate = research_candidate_map.get(candidate_id)
+                if candidate is None:
+                    continue
+                linked_candidates.append(candidate)
+                candidate_ids.append(candidate.id)
+
+        primary_candidate = linked_candidates[0] if linked_candidates else None
+        research_data = {
+            "content_direction": direction,
+            "channel_targets": list(plan.product.primary_channels or []),
+            "include_illustration": True,
+        }
+        if primary_candidate is not None:
+            research_data.update(
+                {
+                    "pain_cluster": primary_candidate.pain_cluster,
+                    "audience_segment": primary_candidate.audience_segment,
+                    "business_process": primary_candidate.business_process,
+                    "solution_type": primary_candidate.solution_type,
+                    "implementation_model": primary_candidate.implementation_model,
+                    "angle": primary_candidate.angle,
+                    "trigger_type": primary_candidate.signal_type,
+                    "tools_mentioned": list(primary_candidate.tools_mentioned_json or []),
+                    "research_candidate_ids": [str(candidate.id) for candidate in linked_candidates],
+                    "source_urls": list(primary_candidate.source_urls_json or []),
+                }
+            )
 
         item = ContentPlanItem(
             plan_id=plan.id,
@@ -474,15 +585,23 @@ async def generate_plan_items_for_plan(
             article_type=str(data.get("article_type") or direction),
             cta_type=str(data.get("cta_type") or "soft"),
             status="planned",
-            research_data={
-                "content_direction": direction,
-                "channel_targets": list(plan.product.primary_channels or []),
-                "include_illustration": True,
-            },
+            research_data=research_data,
         )
         session.add(item)
         new_items.append(item)
         recent_signatures.append(_topic_signature(title))
+        await session.flush()
+        if candidate_ids:
+            await link_research_to_item(session, plan=plan, item=item, candidate_ids=candidate_ids)
+        await upsert_topic_memory_for_item(
+            session,
+            product_id=plan.product_id,
+            plan=plan,
+            item=item,
+            candidate=primary_candidate,
+        )
+        for candidate in linked_candidates:
+            candidate.status = "used"
 
     if len(new_items) < num_items:
         fallback_items = _build_fallback_plan_items(
@@ -520,6 +639,14 @@ async def generate_plan_items_for_plan(
             session.add(item)
             new_items.append(item)
             recent_signatures.append(_topic_signature(title))
+            await session.flush()
+            await upsert_topic_memory_for_item(
+                session,
+                product_id=plan.product_id,
+                plan=plan,
+                item=item,
+                candidate=None,
+            )
 
     if not new_items:
         raise HTTPException(

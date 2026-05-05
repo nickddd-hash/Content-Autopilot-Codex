@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -23,23 +22,21 @@ from app.schemas.content_plan import (
     ContentPlanRead,
     ContentPlanUpdate,
     GeneratePlanItemsPayload,
-    MainContentPlanPayload,
     QuickPostPayload,
     RunPlanPipelinePayload,
 )
 from app.schemas.job_run import JobRunRead, StartGenerationResponse
 from app.services.generation import build_content_plan_item_detail, start_manual_generation, validate_status_transition
 from app.services.media_generator import generate_illustration_for_item, save_uploaded_illustration_for_item
-from app.services.channel_profiles import resolve_dzen_format_mode
 from app.services.plan_execution import (
     build_plan_materials,
-    cancel_plan_pipeline_job,
     get_latest_item_job,
     get_latest_plan_job,
     publish_plan_item_now,
     start_plan_pipeline_job,
 )
 from app.services.plan_generation import generate_plan_items_for_plan, generate_rewrite_items_from_ingested
+from app.services.research_pipeline import sync_topic_memory_status_for_item, upsert_topic_memory_for_item
 
 router = APIRouter()
 QUICK_POST_PLACEHOLDER_TITLE = "Пост по тезисам"
@@ -49,7 +46,7 @@ def _plan_query() -> object:
     return (
         select(ContentPlan)
         .options(selectinload(ContentPlan.items))
-        .options(selectinload(ContentPlan.product).selectinload(Product.channels))
+        .options(selectinload(ContentPlan.product))
         .order_by(ContentPlan.created_at.desc())
     )
 
@@ -182,62 +179,6 @@ async def create_content_plan(
     return await _get_plan_or_404(session, plan.id)
 
 
-@router.post("/main", response_model=ContentPlanRead, status_code=status.HTTP_200_OK)
-async def get_or_create_main_content_plan(
-    payload: MainContentPlanPayload,
-    session: AsyncSession = Depends(get_db_session),
-) -> ContentPlan:
-    product = await session.get(Product, payload.product_id)
-    if product is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found.")
-
-    statement = (
-        select(ContentPlan)
-        .where(ContentPlan.product_id == payload.product_id)
-        .options(selectinload(ContentPlan.items))
-        .order_by(ContentPlan.created_at.desc())
-    )
-    result = await session.execute(statement)
-    existing_plans = list(result.scalars().unique().all())
-    main_plan = next(
-        (
-            plan
-            for plan in existing_plans
-            if isinstance(plan.settings_json, dict) and plan.settings_json.get("is_main") is True
-        ),
-        None,
-    )
-
-    if main_plan is None and existing_plans:
-        main_plan = existing_plans[0]
-
-    if main_plan is None:
-        now = datetime.now(timezone.utc)
-        main_plan = ContentPlan(
-            product_id=payload.product_id,
-            month=f"{now.year}-{now.month:02d}",
-            theme="Основной контент-план",
-            status="draft",
-            settings_json={"is_main": True},
-        )
-        session.add(main_plan)
-    else:
-        main_settings = dict(main_plan.settings_json or {})
-        main_settings["is_main"] = True
-        main_plan.settings_json = main_settings
-
-    for plan in existing_plans:
-        if main_plan is not None and plan.id == main_plan.id:
-            continue
-        settings = dict(plan.settings_json or {})
-        if settings.get("is_main") is True:
-            settings["is_main"] = False
-            plan.settings_json = settings
-
-    await session.commit()
-    return await _get_plan_or_404(session, main_plan.id)
-
-
 @router.get("/{plan_id}", response_model=ContentPlanRead)
 async def get_content_plan(
     plan_id: UUID,
@@ -265,12 +206,8 @@ async def update_content_plan(
     for field_name, value in payload.model_dump(exclude_unset=True).items():
         if field_name == "theme":
             value = (value or "").strip()
-        if field_name == "settings_json":
-            incoming_settings = value.model_dump(exclude_unset=True) if hasattr(value, "model_dump") else dict(value or {})
-            value = {
-                **dict(plan.settings_json or {}),
-                **incoming_settings,
-            }
+        if field_name == "settings_json" and hasattr(value, "model_dump"):
+            value = value.model_dump()
         setattr(plan, field_name, value)
     await session.commit()
     return await _get_plan_or_404(session, plan_id)
@@ -292,10 +229,18 @@ async def create_content_plan_item(
     payload: ContentPlanItemCreate,
     session: AsyncSession = Depends(get_db_session),
 ) -> ContentPlanItem:
-    await _get_plan_or_404(session, plan_id)
+    plan = await _get_plan_or_404(session, plan_id)
     item = _build_item(payload)
     item.plan_id = plan_id
     session.add(item)
+    await session.flush()
+    await upsert_topic_memory_for_item(
+        session,
+        product_id=plan.product_id,
+        plan=plan,
+        item=item,
+        candidate=None,
+    )
     await session.commit()
     return await _get_item_or_404(session, plan_id, item.id)
 
@@ -318,7 +263,6 @@ async def create_quick_post(
     selected_channels = [channel for channel in payload.channel_targets if channel in available_channels]
     if not selected_channels:
         selected_channels = list(available_channels)
-    dzen_format_mode = resolve_dzen_format_mode(plan.product)
 
     item = ContentPlanItem(
         plan_id=plan_id,
@@ -335,7 +279,6 @@ async def create_quick_post(
             "content_direction": content_direction,
             "channel_targets": selected_channels,
             "include_illustration": payload.include_illustration,
-            "dzen_format_mode": dzen_format_mode,
         },
         article_review={
             "creation_mode": "quick_post",
@@ -357,6 +300,14 @@ async def create_quick_post(
         }
 
     session.add(item)
+    await session.flush()
+    await upsert_topic_memory_for_item(
+        session,
+        product_id=plan.product_id,
+        plan=plan,
+        item=item,
+        candidate=None,
+    )
     await session.commit()
 
     if payload.generate_now:
@@ -415,8 +366,16 @@ async def update_content_plan_item(
     session: AsyncSession = Depends(get_db_session),
 ) -> ContentPlanItem:
     item = await _get_item_or_404(session, plan_id, item_id)
+    plan = await _get_plan_or_404(session, plan_id)
     for field_name, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, field_name, value)
+    await upsert_topic_memory_for_item(
+        session,
+        product_id=plan.product_id,
+        plan=plan,
+        item=item,
+        candidate=None,
+    )
     await session.commit()
     return await _get_item_or_404(session, plan_id, item_id)
 
@@ -440,6 +399,7 @@ async def update_content_plan_item_status(
     item = await _get_item_or_404(session, plan_id, item_id)
     validate_status_transition(item.status, payload.status)
     item.status = payload.status
+    await sync_topic_memory_status_for_item(session, item=item)
     await session.commit()
     await session.refresh(item)
     return build_content_plan_item_detail(item)
@@ -505,16 +465,7 @@ async def run_content_plan_pipeline(
         generate_items=options.generate_items,
         theme_override=options.theme,
         num_items_override=options.num_items,
-        channel_targets_override=options.channel_targets,
     )
-
-
-@router.post("/{plan_id}/cancel-pipeline", response_model=JobRunRead)
-async def cancel_content_plan_pipeline(
-    plan_id: UUID,
-    session: AsyncSession = Depends(get_db_session),
-) -> JobRunRead:
-    return await cancel_plan_pipeline_job(session, plan_id)
 
 
 @router.post("/{plan_id}/generate-items", response_model=list[ContentPlanItemRead])

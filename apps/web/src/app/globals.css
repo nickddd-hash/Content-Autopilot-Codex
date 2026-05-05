@@ -23,7 +23,7 @@ body {
     radial-gradient(circle at top left, rgba(216, 232, 168, 0.42), transparent 28%),
     linear-gradient(180deg, #fcfbf7 0%, var(--bg) 100%);
   color: var(--text);
-  font-family: Aptos, "Segoe UI", "Helvetica Neue", sans-serif;
+  font-family: Georgia, "Times New Roman", serif;
 }
 
 body {

@@ -14,11 +14,11 @@ type PlanMixConfiguratorProps = {
 };
 
 const DIRECTION_META: Array<{ key: MixKey; label: string; description: string }> = [
-  { key: "practical", label: "Practical", description: "Практика, применение, польза в работе и жизни." },
-  { key: "educational", label: "Educational", description: "Объяснение AI простыми словами, база и разборы." },
-  { key: "news", label: "News", description: "Важные новости и обновления AI понятным языком." },
-  { key: "opinion", label: "Opinion", description: "Личная позиция, интерпретация, взгляд автора." },
-  { key: "critical", label: "Critical", description: "Критический взгляд, ограничения, хайп и риски." },
+  { key: "practical", label: "Practical", description: "Бизнес-ситуации, кейсы, автоматизация, прикладная польза и конкретные сценарии." },
+  { key: "educational", label: "Educational", description: "Простые объяснения AI и полезные трюки для работы без перегруза." },
+  { key: "news", label: "News", description: "Важные AI-новости и обновления с понятным практическим выводом." },
+  { key: "opinion", label: "Opinion", description: "Личный взгляд, backstage и авторская интерпретация без пафоса." },
+  { key: "critical", label: "Critical", description: "Ограничения, риски, трезвый взгляд и посты из серии AI без иллюзий." },
 ];
 
 function normalizeMix(input: Record<string, number> | undefined): Record<MixKey, number> {

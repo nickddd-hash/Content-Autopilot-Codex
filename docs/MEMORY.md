@@ -185,19 +185,185 @@
 - The plan page now has a safe title fallback for broken data:
   - if `item.title` looks corrupted like `???`, use `generated_draft_title` if it is clean.
 
-## Session 2026-05-03 Channel Strategy
+## Session 2026-05-04 Strategy Reset
 
-- Added detailed channel strategy context in `docs/SESSION_2026-05-03_CHANNEL_STRATEGY.md`.
-- Keep `AI bez slozhnosti`, but make the channel business-oriented: AI, bots, automation and content systems for small business and experts.
-- Do not turn the channel into a dry IT-services showcase. Use a human expert voice and practical business situations.
-- Content mix should be broad but business-centered:
-  - business automation situations
-  - simple AI tricks
-  - AI news explained through practical value
-  - personal/backstage observations
-  - soft offers and mini-audits
-- Prompts should check:
-  - who recognizes themselves in the post
-  - what illusion is removed
-  - why the reader should come to Nikolay instead of doing it themselves
-- Add a future research layer for realistic business cases, small-business pains, trends and examples.
+- The current content strategy is now explicitly centered on `AI bez slozhnosti` as a business-oriented channel about:
+  - AI for small business
+  - bots
+  - CRM
+  - automation
+  - content systems
+- The channel should not compete as a generic AI-news or prompt-tips blog.
+- Main positioning:
+  - Nikolay helps entrepreneurs, experts, marketers and small teams understand where AI is actually useful in their business
+  - then helps diagnose, design and implement a working system
+- The core audience is Russia/CIS non-technical business users who:
+  - heard about AI
+  - tried ChatGPT or analogs superficially
+  - got weak results
+  - concluded AI is vague, overhyped or not for their business
+  - still suspect there is real value somewhere
+
+- Main lead magnet / entry point:
+  - free `AI business audit/helper`
+  - bot asks 7 short business questions
+  - returns:
+    - diagnosis
+    - 3 automation priorities
+    - quick win for this week
+    - suitable tools
+    - approximate ROI
+- The desired funnel is:
+  - post
+  - interest / recognition
+  - free AI business audit
+  - personal result
+  - dialogue with Nikolay
+  - consultation / automation map / MVP / implementation
+
+- The product strategy for content now is:
+  - not "teach AI in general"
+  - but show where business loses time, money, leads and manual effort
+  - and how AI, bots, CRM and automation can solve that in practical terms
+
+- Recommended content mix for the current strategy:
+  - `practical`: 60
+  - `educational`: 20
+  - `news`: 10
+  - `opinion`: 5
+  - `critical`: 5
+- This is intentionally more business-centered than the older broader AI-public-education mix.
+
+- Hardcoded prompt strategy was updated in code:
+  - plan generation now includes base strategy rules about:
+    - business orientation
+    - real business situations
+    - movement toward free AI audit
+  - post generation now includes the same base strategy plus stronger anti-rules
+- Hardcoded anti-rules now explicitly push the model away from:
+  - DIY framing
+  - no-code evangelism as the default answer
+  - fake first-person stories
+  - abstract AI hype
+  - technical overload for non-technical readers
+  - generic AI news without practical value
+  - random-tool enthusiasm without process diagnosis
+
+- The plan UI defaults were updated to the new mix.
+- The plan generation defaults were updated to the new mix.
+- The mix descriptions in UI were clarified:
+  - `practical` now explicitly covers business situations, automation, cases and applied scenarios
+  - `educational` now covers simple AI explanations and useful work/business tricks
+  - `critical` now maps well to `AI without illusions`
+
+- Important product principle confirmed:
+  - the strategy/research/memory logic should not live only in manual product settings
+  - it should be partly hardcoded as the base operating principle of the content factory
+- Current hardcoded principle:
+  - generate content as a practical translator between AI and business
+  - prefer recognizable business situations
+  - prefer diagnosis and implementation help over self-assembly
+  - use soft CTA logic toward audit / consultation / implementation
+
+- Immediate next continuation point:
+  - continue configuring the May content plan from this strategy base
+  - if needed, add a stronger `research-first` layer before plan generation
+  - later, add memory of rejected topics / angles as a real filtering mechanism instead of prompt-only guidance
+
+## Session 2026-05-05 Research-First Pipeline
+
+- A real `research-first` foundation was added to the content factory instead of relying only on prompt rules.
+- The plan-generation flow is no longer conceptually:
+  - product context
+  - prompt
+  - generated topics
+- It is now conceptually:
+  - collect external signals
+  - normalize them into structured research candidates
+  - filter them through topic memory and diversity logic
+  - then generate plan topics from the cleaned pool
+
+- Added new DB models:
+  - `ResearchSource`
+  - `ResearchCandidate`
+  - `TopicMemory`
+  - `PlanResearchLink`
+- Added Alembic migration:
+  - `20260505_0006_add_research_pipeline_models.py`
+
+- Added service:
+  - `app/services/research_pipeline.py`
+- Main responsibilities:
+  - collect external signals
+  - normalize them into:
+    - pain cluster
+    - audience segment
+    - business process
+    - solution type
+    - implementation model
+    - angle
+    - freshness reason
+  - keep a duplicate-group key
+  - filter by topic memory
+  - limit over-concentration of one pain cluster
+  - link research candidates to generated plan items
+  - write/update topic memory for generated or manually created content items
+
+- Research-first logic now lives in code, not only in docs/prompts.
+- `plan_generation.py` now:
+  - collects research candidates before generating plan topics
+  - passes research candidate pool into plan-generation prompt
+  - expects `research_candidate_ids` in generated items
+  - stores research metadata into item `research_data`
+  - writes `PlanResearchLink`
+  - writes `TopicMemory`
+
+- `content_plans.py` and `plan_execution.py` now update topic memory in additional flows:
+  - manual item creation
+  - quick post creation
+  - item updates
+  - item status changes
+  - publish-now / autopost status sync
+
+- Diversity logic now exists on two layers:
+  - prompt rules
+  - research candidate selection layer
+- Current implemented practical rule:
+  - one familiar pain should not monopolize the next several posts
+  - candidate selection limits too many items from the same pain cluster in the same pool
+
+- Important environment note:
+  - local Docker is not available in this shell
+  - server hardening previously removed public Postgres exposure
+  - database access for verification was restored through a safe SSH tunnel:
+    - local `127.0.0.1:5433`
+    - tunneled to server Docker Postgres container
+- Current working server-side DB credentials were confirmed from `/opt/athena-content/.env`
+- Alembic migration was successfully applied to the server-backed database through the tunnel.
+
+- Verification completed:
+  - Python compile/import checks passed
+  - Alembic migration passed
+  - research-source / research-candidate DB writes passed
+  - end-to-end smoke test with mocked external fetch and mocked LLM plan output passed:
+    - generated plan items were created
+    - `TopicMemory` entries were written
+    - `PlanResearchLink` entries were written
+
+- Bugs found and fixed during verification:
+  - two async lazy-loading bugs in `research_pipeline.py` caused `MissingGreenlet`
+  - both were removed by replacing relationship access with explicit SQL checks
+  - production smoke-test then exposed a `varchar(100)` overflow from LLM-normalized labels
+  - this was fixed by clamping normalized labels with `_fit_label(...)` before DB insert
+  - a later production smoke-test exposed another bug in `_candidate_memory_key`
+  - the helper assumed only `ResearchCandidate | dict`, but real DB memory entries are `TopicMemory`
+  - this was fixed by letting `_candidate_memory_key` handle `TopicMemory` objects directly
+
+- Still true:
+  - real external fetch is not testable from this local shell because outbound `httpx` requests are blocked here
+  - production API container is still on older deployed code until next deploy
+
+- Immediate next continuation point:
+  - update `HANDOVER.md`
+  - deploy fresh backend code to production
+  - run one real production-side plan generation check after deploy

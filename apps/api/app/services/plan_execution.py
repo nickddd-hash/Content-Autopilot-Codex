@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import datetime, time, timedelta, timezone
 from uuid import UUID
 
@@ -15,20 +14,8 @@ from app.models import ContentPlan, ContentPlanItem, JobRun, Product, ProductCha
 from app.services.generation import build_content_plan_item_detail, start_manual_generation
 from app.services.media_generator import generate_illustration_for_item
 from app.services.plan_generation import generate_plan_items_for_plan
+from app.services.research_pipeline import sync_topic_memory_status_for_item
 from app.services.telegram_publisher import publish_item_to_telegram_channels
-
-logger = logging.getLogger(__name__)
-_ACTIVE_PLAN_PIPELINE_TASKS: dict[UUID, asyncio.Task] = {}
-
-
-def _log_background_task_result(job_id: UUID, task: asyncio.Task) -> None:
-    _ACTIVE_PLAN_PIPELINE_TASKS.pop(job_id, None)
-    try:
-        task.result()
-    except asyncio.CancelledError:
-        return
-    except Exception:
-        logger.exception("Plan pipeline background task crashed.")
 
 
 def _normalize_publish_days(raw_days: list[int] | None) -> set[int]:
@@ -47,16 +34,6 @@ def _parse_publish_time(value: str | None) -> time:
         return time(hour=int(hours), minute=int(minutes), tzinfo=timezone.utc)
     except (TypeError, ValueError):
         return time(hour=7, minute=0, tzinfo=timezone.utc)
-
-
-def _channel_signature(item: ContentPlanItem) -> str:
-    research_data = item.research_data if isinstance(item.research_data, dict) else {}
-    raw_targets = research_data.get("channel_targets")
-    if isinstance(raw_targets, list):
-        normalized = sorted({str(target).strip().lower() for target in raw_targets if str(target).strip()})
-        if normalized:
-            return "|".join(normalized)
-    return "telegram"
 
 
 def _build_schedule_slots(
@@ -130,7 +107,7 @@ async def build_plan_materials(session: AsyncSession, plan_id: UUID) -> list[dic
     plan = await _get_plan_with_product(session, plan_id)
     ordered_items = sorted(plan.items, key=lambda item: item.order)
     plan_settings = dict(plan.settings_json or {})
-    auto_generate_illustrations = plan_settings.get("auto_generate_illustrations", False) is True
+    auto_generate_illustrations = plan_settings.get("auto_generate_illustrations", True) is True
 
     for item in ordered_items:
         if item.status == "archived":
@@ -156,21 +133,16 @@ async def build_plan_materials(session: AsyncSession, plan_id: UUID) -> list[dic
     autopost_enabled = bool(content_settings and content_settings.autopilot_enabled and content_settings.social_posting_enabled)
     schedulable_items = [item for item in ordered_items if item.published_at is None and item.status != "archived"]
     if schedulable_items and content_settings is not None:
-        groups: dict[str, list[ContentPlanItem]] = {}
-        for item in schedulable_items:
-            groups.setdefault(_channel_signature(item), []).append(item)
-
-        for group_items in groups.values():
-            schedule_slots = _build_schedule_slots(
-                count=len(group_items),
-                publish_days=content_settings.publish_days,
-                publish_time_utc=content_settings.publish_time_utc,
-                start_at=datetime.now(timezone.utc),
-            )
-            for item, slot in zip(group_items, schedule_slots, strict=False):
-                item.scheduled_at = slot
-                if autopost_enabled and item.status == "draft":
-                    item.status = "review-ready"
+        schedule_slots = _build_schedule_slots(
+            count=len(schedulable_items),
+            publish_days=content_settings.publish_days,
+            publish_time_utc=content_settings.publish_time_utc,
+            start_at=datetime.now(timezone.utc),
+        )
+        for item, slot in zip(schedulable_items, schedule_slots, strict=False):
+            item.scheduled_at = slot
+            if autopost_enabled and item.status == "draft":
+                item.status = "review-ready"
 
     plan_settings["needs_reschedule"] = False
     plan_settings["reschedule_reason"] = None
@@ -189,7 +161,6 @@ async def _run_plan_pipeline_job(
     generate_items: bool,
     theme_override: str | None,
     num_items_override: int | None,
-    channel_targets_override: list[str] | None,
 ) -> None:
     async with AsyncSessionLocal() as session:
         job = await session.get(JobRun, job_id)
@@ -208,7 +179,6 @@ async def _run_plan_pipeline_job(
                     plan_id,
                     theme_override=theme_override,
                     num_items_override=num_items_override,
-                    channel_targets_override=channel_targets_override,
                 )
             built_items = await build_plan_materials(session, plan_id)
 
@@ -226,20 +196,7 @@ async def _run_plan_pipeline_job(
                 "result": "completed",
             }
             await session.commit()
-    except asyncio.CancelledError:
-        async with AsyncSessionLocal() as session:
-            job = await session.get(JobRun, job_id)
-            if job is not None and job.status in ("pending", "running"):
-                job.status = "cancelled"
-                job.finished_at = datetime.now(timezone.utc)
-                job.error_message = "Stopped manually by operator request"
-                job.meta_json = {
-                    **(job.meta_json or {}),
-                    "result": "cancelled",
-                }
-                await session.commit()
     except Exception as exc:
-        logger.exception("Plan pipeline job failed: job_id=%s plan_id=%s", job_id, plan_id)
         async with AsyncSessionLocal() as session:
             job = await session.get(JobRun, job_id)
             if job is None:
@@ -262,22 +219,8 @@ async def start_plan_pipeline_job(
     generate_items: bool = False,
     theme_override: str | None = None,
     num_items_override: int | None = None,
-    channel_targets_override: list[str] | None = None,
 ) -> JobRun:
     plan = await _get_plan_with_product(session, plan_id)
-    active_statement = (
-        select(JobRun)
-        .where(JobRun.content_plan_id == plan.id)
-        .where(JobRun.status.in_(("pending", "running")))
-        .limit(1)
-    )
-    active_job = await session.scalar(active_statement)
-    if active_job is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Plan generation is already running.",
-        )
-
     now = datetime.now(timezone.utc)
     job_type = "plan_generation_pipeline" if generate_items else "plan_material_build"
     job = JobRun(
@@ -291,82 +234,22 @@ async def start_plan_pipeline_job(
             "generate_items": generate_items,
             "theme_override": theme_override,
             "num_items_override": num_items_override,
-            "channel_targets_override": channel_targets_override or [],
         },
     )
     session.add(job)
     await session.commit()
     await session.refresh(job)
 
-    task = asyncio.create_task(
+    asyncio.create_task(
         _run_plan_pipeline_job(
             job_id=job.id,
             plan_id=plan.id,
             generate_items=generate_items,
             theme_override=theme_override,
             num_items_override=num_items_override,
-            channel_targets_override=channel_targets_override,
         )
     )
-    _ACTIVE_PLAN_PIPELINE_TASKS[job.id] = task
-    task.add_done_callback(lambda finished_task: _log_background_task_result(job.id, finished_task))
     return job
-
-
-async def cancel_plan_pipeline_job(session: AsyncSession, plan_id: UUID) -> JobRun:
-    await _get_plan_with_product(session, plan_id)
-    statement = (
-        select(JobRun)
-        .where(JobRun.content_plan_id == plan_id)
-        .where(JobRun.status.in_(("pending", "running")))
-        .order_by(JobRun.created_at.desc())
-        .limit(1)
-    )
-    job = await session.scalar(statement)
-    if job is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Active plan generation job not found.")
-
-    task = _ACTIVE_PLAN_PIPELINE_TASKS.get(job.id)
-    if task is not None and not task.done():
-        task.cancel()
-
-    job.status = "cancelled"
-    job.finished_at = datetime.now(timezone.utc)
-    job.error_message = "Stopped manually by operator request"
-    job.meta_json = {
-        **(job.meta_json or {}),
-        "result": "cancelled",
-    }
-    await session.commit()
-    await session.refresh(job)
-    return job
-
-
-def _shift_future_schedule_after_manual_publish(
-    plan: ContentPlan,
-    published_item: ContentPlanItem,
-    vacated_slot: datetime | None,
-) -> None:
-    if vacated_slot is None:
-        return
-
-    future_items = sorted(
-        [
-            item
-            for item in plan.items
-            if item.id != published_item.id
-            and item.status != "archived"
-            and item.published_at is None
-            and item.scheduled_at is not None
-            and item.scheduled_at > vacated_slot
-        ],
-        key=lambda item: (item.scheduled_at, item.order),
-    )
-    next_slot = vacated_slot
-    for future_item in future_items:
-        current_slot = future_item.scheduled_at
-        future_item.scheduled_at = next_slot
-        next_slot = current_slot
 
 
 async def publish_plan_item_now(session: AsyncSession, plan_id: UUID, item_id: UUID) -> dict:
@@ -389,19 +272,16 @@ async def publish_plan_item_now(session: AsyncSession, plan_id: UUID, item_id: U
         telegram_channels = [channel for channel in telegram_channels if channel.platform in selected_channels]
 
     now = datetime.now(timezone.utc)
-    vacated_slot = item.scheduled_at if item.scheduled_at and item.scheduled_at > now else None
-    item.scheduled_at = now
+    if item.scheduled_at and item.scheduled_at > now:
+        plan_settings = dict(plan.settings_json or {})
+        plan_settings["needs_reschedule"] = True
+        plan_settings["reschedule_reason"] = "published_early"
+        plan_settings["reschedule_source_item_id"] = str(item.id)
+        plan.settings_json = plan_settings
 
     item = await publish_item_to_telegram_channels(session, plan, item, telegram_channels)
-    _shift_future_schedule_after_manual_publish(plan, item, vacated_slot)
-    if vacated_slot is not None:
-        plan_settings = dict(plan.settings_json or {})
-        plan_settings["needs_reschedule"] = False
-        plan_settings["reschedule_reason"] = None
-        plan_settings["reschedule_source_item_id"] = None
-        plan.settings_json = plan_settings
-        await session.commit()
-        await session.refresh(item)
+    await sync_topic_memory_status_for_item(session, item=item)
+    await session.commit()
     return build_content_plan_item_detail(item)
 
 
@@ -440,16 +320,12 @@ async def process_due_autopost_items(session: AsyncSession) -> int:
 
         try:
             await publish_item_to_telegram_channels(session, plan, item, telegram_channels)
-            published_count += 1
-        except HTTPException as exc:
-            item.retry_count += 1
-            item.error_message = str(exc.detail or "Автопостинг не смог отправить материал в Telegram.")
-            logger.warning("Autopost failed for item %s: %s", item.id, item.error_message)
+            await sync_topic_memory_status_for_item(session, item=item)
             await session.commit()
-        except Exception as exc:
+            published_count += 1
+        except HTTPException:
             item.retry_count += 1
-            item.error_message = f"Автопостинг не смог отправить материал в Telegram: {exc}"
-            logger.exception("Unexpected autopost failure for item %s.", item.id)
+            item.error_message = "Автопостинг не смог отправить материал в Telegram."
             await session.commit()
 
     return published_count

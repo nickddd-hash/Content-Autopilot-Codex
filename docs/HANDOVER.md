@@ -186,11 +186,141 @@
 - Plan page has a display fallback for broken titles:
   - `generated_draft_title` can replace a visibly corrupted `item.title` in the plan list.
 
-## Session 2026-05-03 Stop Point
+## Session 2026-05-04 Stop Point
 
-- Channel strategy discussion saved in `docs/SESSION_2026-05-03_CHANNEL_STRATEGY.md`.
-- Marketing recommendation: shift `AI bez slozhnosti` toward business and lead generation.
-- Decision: accept business focus, but keep the simple/human brand instead of becoming a dry IT-services channel.
-- Product implication: content plans should mix publication roles instead of producing only daily business cases.
-- Prompt implication: every business-facing post should reveal a recognizable situation, remove an illusion and lead toward Nikolay's audit/implementation help.
-- Future feature idea: add a research layer for automation cases, small-business pains, trends, and rejected-topic memory.
+- Strategy for `AI bez slozhnosti` was reset and clarified around a business-centered AI/automation positioning.
+- Keep the simple human brand, but the actual territory is now:
+  - AI for small business
+  - bots
+  - CRM
+  - automation
+  - content systems
+- The channel should help non-technical business users understand where AI is actually useful in their business, not just teach AI generally.
+
+- Main lead magnet is now explicit:
+  - free AI business audit/helper bot
+  - asks 7 short business questions
+  - returns:
+    - diagnosis
+    - 3 automation priorities
+    - quick win
+    - suitable tools
+    - approximate ROI
+- This is the intended primary conversion path from content into conversation and implementation work.
+
+- Content factory defaults were updated to the current strategy:
+  - default content mix changed to:
+    - `practical` 60
+    - `educational` 20
+    - `news` 10
+    - `opinion` 5
+    - `critical` 5
+  - backend schema defaults updated
+  - plan-generation defaults updated
+  - plan page fallback defaults updated
+  - plan mix UI descriptions updated
+
+- Base prompt logic is now partially hardcoded instead of living only in product settings:
+  - plan generation prompt now includes:
+    - business-oriented base strategy rules
+    - movement toward free AI audit
+    - anti-rules against weak topic framing
+  - post generation prompt now includes:
+    - same strategy base
+    - explicit anti-rules for:
+      - DIY
+      - no-code as default answer
+      - fake personal stories
+      - abstract AI hype
+      - technical overload
+      - generic AI news without practical value
+      - tool enthusiasm without process diagnosis
+
+- Current product principle to preserve:
+  - the content factory should work as a translator between AI and real business situations
+  - content should help the reader recognize:
+    - lost time
+    - lost leads
+    - routine
+    - chaos
+    - weak follow-up
+    - missing system
+  - soft CTA should usually point toward audit / diagnosis / consultation / implementation help rather than self-assembly
+
+- Important note:
+  - this work changed prompt logic and defaults only
+  - no deploy or runtime tests were run in this session
+
+- Next likely continuation:
+  - continue setting up the May content plan from the new strategy base
+  - possibly hardcode a stronger `research-first` phase before plan generation
+  - later build real rejected-topic memory instead of relying only on prompt instructions
+
+## Session 2026-05-05 Stop Point
+
+- A full `research-first` backend foundation was added.
+- The content factory now has real schema/service support for:
+  - `ResearchSource`
+  - `ResearchCandidate`
+  - `TopicMemory`
+  - `PlanResearchLink`
+- Alembic migration added:
+  - `20260505_0006_add_research_pipeline_models.py`
+
+- New service:
+  - `app/services/research_pipeline.py`
+- It currently handles:
+  - collecting external signals
+  - normalizing them into structured candidates
+  - duplicate-group logic
+  - pain-cluster diversity limiting
+  - linking research to generated plan items
+  - updating topic memory
+
+- `plan_generation.py` now uses research-first logic before topic generation.
+- Generated items can now carry:
+  - `research_candidate_ids`
+  - research-based pain/process/solution metadata inside `research_data`
+
+- Topic memory is now updated in more than one path:
+  - generated plan items
+  - manual item creation
+  - quick post creation
+  - status updates
+  - publish/autopost sync
+
+- Verification status:
+  - compile/import checks passed
+  - Alembic migration passed against the server-backed DB through tunnel
+  - research candidate insertion passed
+  - end-to-end smoke test with mocked fetch + mocked LLM output passed
+  - smoke test confirmed:
+    - items created
+    - `TopicMemory` entries created
+    - `PlanResearchLink` entries created
+
+- Important ops note:
+  - local Docker is unavailable in this shell
+  - server Postgres is intentionally no longer publicly exposed
+  - a safe SSH tunnel was used for DB verification:
+    - local `127.0.0.1:5433`
+    - remote Docker Postgres container `172.18.0.2:5432`
+- This was needed because old local assumptions about exposed DB ports are no longer valid after server hardening.
+
+- Important coding note:
+  - two `MissingGreenlet` async bugs were found in `research_pipeline.py`
+  - both were fixed by replacing lazy relationship checks with explicit SQL queries
+  - later production smoke-testing exposed a `varchar(100)` overflow from long normalized labels
+  - this was fixed by clamping label-like fields with `_fit_label(...)`
+  - another production smoke-test exposed that `_candidate_memory_key` did not handle `TopicMemory`
+  - this was fixed by supporting `TopicMemory` in the helper directly
+
+- Still not yet done:
+  - fresh production deploy of the new backend code
+  - real live external fetch verification in the deployed environment
+  - real live plan generation verification with production API code
+
+- Next continuation:
+  - deploy backend changes
+  - verify production health
+  - run one real generation path for the new research-first plan pipeline

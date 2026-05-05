@@ -2,8 +2,6 @@ import Link from "next/link";
 
 import { fetchJson } from "@/lib/api";
 
-export const dynamic = "force-dynamic";
-
 type Product = {
   id: string;
   name: string;
@@ -22,7 +20,6 @@ type Product = {
 function prettifyChannel(channel: string) {
   const labels: Record<string, string> = {
     blog: "Блог",
-    dzen: "Дзен",
     telegram: "Telegram",
     instagram: "Instagram",
     youtube: "YouTube",

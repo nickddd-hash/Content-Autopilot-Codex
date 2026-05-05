@@ -11,11 +11,11 @@ PLAN_DIRECTION_KEYS = ("practical", "educational", "news", "opinion", "critical"
 
 
 class ContentMixSettings(BaseModel):
-    practical: int = Field(default=40, ge=0, le=100)
-    educational: int = Field(default=25, ge=0, le=100)
-    news: int = Field(default=15, ge=0, le=100)
-    opinion: int = Field(default=10, ge=0, le=100)
-    critical: int = Field(default=10, ge=0, le=100)
+    practical: int = Field(default=60, ge=0, le=100)
+    educational: int = Field(default=20, ge=0, le=100)
+    news: int = Field(default=10, ge=0, le=100)
+    opinion: int = Field(default=5, ge=0, le=100)
+    critical: int = Field(default=5, ge=0, le=100)
 
     @model_validator(mode="after")
     def validate_sum(self) -> "ContentMixSettings":
@@ -127,10 +127,6 @@ class ContentPlanCreate(BaseModel):
     status: str = Field(default="draft", min_length=2, max_length=50)
     settings_json: ContentPlanSettings = Field(default_factory=ContentPlanSettings)
     items: list[ContentPlanItemCreate] = Field(default_factory=list)
-
-
-class MainContentPlanPayload(BaseModel):
-    product_id: UUID
 
 
 class ContentPlanUpdate(BaseModel):

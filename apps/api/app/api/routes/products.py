@@ -26,12 +26,6 @@ from app.services.channel_validation import ChannelValidationError, validate_cha
 router = APIRouter()
 
 
-def _validation_success_message(platform: str) -> str:
-    if platform == "dzen":
-        return "Связь сохранена. Канал готов для адаптации контента. Публикация в Дзен пока остаётся ручной."
-    return "Связь установлена. Канал готов к автопостингу."
-
-
 @router.get("", response_model=list[ProductRead])
 async def list_products(
     session: AsyncSession = Depends(get_db_session),
@@ -138,8 +132,8 @@ async def create_product_channel(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found.")
 
     normalized_platform = payload.platform.strip().lower()
-    if normalized_platform not in {"telegram", "vk", "dzen"}:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only Telegram, VK and Dzen are supported for channel connection now.")
+    if normalized_platform not in {"telegram", "vk"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only Telegram and VK are supported for channel connection now.")
 
     existing_channel = next((channel for channel in product.channels if channel.platform == normalized_platform), None)
     if existing_channel is not None:
@@ -207,7 +201,7 @@ async def validate_product_channel(
         channel.external_id = external_id
         channel.external_name = external_name
         channel.validation_status = "valid"
-        channel.validation_message = _validation_success_message(channel.platform)
+        channel.validation_message = "Связь установлена. Канал готов к автопостингу."
         channel.validated_at = datetime.now(timezone.utc)
     except ChannelValidationError as error:
         channel.validation_status = "invalid"

@@ -90,7 +90,6 @@ export function statusLabel(status: string): string {
     running: "В работе",
     pending: "В очереди",
     completed: "Завершено",
-    cancelled: "Остановлено",
   };
 
   return labels[status] || status;

@@ -7,15 +7,13 @@ import { deleteJson, fetchJson, postJson } from "@/lib/api";
 
 import PlanMixConfigurator from "./PlanMixConfigurator";
 import PlanJobPolling from "./PlanJobPolling";
-import PlanGenerationControls from "./PlanGenerationControls";
 import QuickPostModal from "./QuickPostModal";
-
-export const dynamic = "force-dynamic";
 
 type ContentPlanItem = {
   id: string;
   order: number;
   title: string;
+  generated_draft_title?: string | null;
   angle: string | null;
   status: string;
   article_type: string;
@@ -23,7 +21,6 @@ type ContentPlanItem = {
   target_keywords: string[];
   scheduled_at?: string | null;
   published_at?: string | null;
-  research_data?: Record<string, unknown>;
 };
 
 type ContentPlan = {
@@ -32,18 +29,17 @@ type ContentPlan = {
   month: string;
   theme: string | null;
   status: string;
-    settings_json?: {
-      content_mix?: {
-        practical?: number;
-        educational?: number;
-        news?: number;
-        opinion?: number;
-        critical?: number;
-      };
-      auto_generate_illustrations?: boolean;
-      needs_reschedule?: boolean;
-      reschedule_reason?: string | null;
+  settings_json?: {
+    content_mix?: {
+      practical?: number;
+      educational?: number;
+      news?: number;
+      opinion?: number;
+      critical?: number;
     };
+    needs_reschedule?: boolean;
+    reschedule_reason?: string | null;
+  };
   items: ContentPlanItem[];
 };
 
@@ -60,35 +56,6 @@ type PlanJob = {
 };
 
 const CALENDAR_WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
-const DEFAULT_CHANNELS = ["telegram"];
-const CHANNEL_LABELS: Record<string, string> = {
-  dzen: "DZ",
-  telegram: "TG",
-  instagram: "IG",
-  vk: "VK",
-  youtube: "YT",
-  blog: "BLOG",
-  linkedin: "IN",
-  x: "X",
-  tiktok: "TT",
-  facebook: "FB",
-  website: "WEB",
-  email: "MAIL",
-};
-const CHANNEL_TITLES: Record<string, string> = {
-  dzen: "Дзен",
-  telegram: "Telegram",
-  instagram: "Instagram",
-  vk: "VK",
-  youtube: "YouTube",
-  blog: "Blog",
-  linkedin: "LinkedIn",
-  x: "X",
-  tiktok: "TikTok",
-  facebook: "Facebook",
-  website: "Website",
-  email: "Email",
-};
 
 function buildDayKey(year: number, monthIndex: number, day: number) {
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -144,99 +111,32 @@ function formatScheduledLabel(value?: string | null) {
   }).format(new Date(value));
 }
 
-function normalizeChannel(value: string) {
-  const normalized = value.trim().toLowerCase();
-  if (["dzen", "дзен"].includes(normalized)) return "dzen";
-  if (["tg", "telegram"].includes(normalized)) return "telegram";
-  if (["insta", "instagram", "reels"].includes(normalized)) return "instagram";
-  if (["yt", "youtube", "shorts"].includes(normalized)) return "youtube";
-  return normalized;
+function hasBrokenDisplayText(value?: string | null) {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (trimmed.includes("�")) return true;
+  const questionMarkCount = [...trimmed].filter((symbol) => symbol === "?").length;
+  return questionMarkCount >= 3 && questionMarkCount / trimmed.length > 0.08;
 }
 
-function getItemChannels(item: ContentPlanItem, productChannels: string[]) {
-  const rawTargets = item.research_data?.channel_targets;
-  const itemChannels = Array.isArray(rawTargets)
-    ? rawTargets.map((channel) => normalizeChannel(String(channel))).filter(Boolean)
-    : [];
-  const fallbackChannels = productChannels.map((channel) => normalizeChannel(channel)).filter(Boolean);
-  return [...new Set(itemChannels.length ? itemChannels : fallbackChannels.length ? fallbackChannels : DEFAULT_CHANNELS)];
-}
-
-function getDayChannels(items: ContentPlanItem[], productChannels: string[]) {
-  return [...new Set(items.flatMap((item) => getItemChannels(item, productChannels)))];
-}
-
-function channelLabel(channel: string) {
-  return CHANNEL_LABELS[channel] || channel.slice(0, 4).toUpperCase();
-}
-
-function channelTitle(channel: string) {
-  return CHANNEL_TITLES[channel] || channel;
-}
-
-function channelSortWeight(channel: string) {
-  const weights: Record<string, number> = {
-    telegram: 10,
-    dzen: 20,
-    blog: 30,
-    vk: 40,
-    instagram: 50,
-    youtube: 60,
-  };
-  return weights[channel] ?? 999;
-}
-
-function sortPlanItems(left: ContentPlanItem, right: ContentPlanItem) {
-  const leftDate = left.scheduled_at ? String(left.scheduled_at) : "9999";
-  const rightDate = right.scheduled_at ? String(right.scheduled_at) : "9999";
-  const dateCompare = leftDate.localeCompare(rightDate);
-  if (dateCompare !== 0) return dateCompare;
-  return left.order - right.order;
-}
-
-function groupPlanItemsBySlot(items: ContentPlanItem[], productChannels: string[]) {
-  const groups = new Map<
-    string,
-    {
-      slotKey: string;
-      slotLabel: string;
-      items: Array<ContentPlanItem & { normalizedChannels: string[] }>;
-    }
-  >();
-
-  for (const item of [...items].sort(sortPlanItems)) {
-    const slotKey = item.scheduled_at ? String(item.scheduled_at) : `unscheduled-${item.id}`;
-    const slotLabel = item.scheduled_at ? formatScheduledLabel(item.scheduled_at) : "Без даты";
-    const normalizedChannels = getItemChannels(item, productChannels).sort(
-      (left, right) => channelSortWeight(left) - channelSortWeight(right) || left.localeCompare(right),
-    );
-    const group = groups.get(slotKey) ?? { slotKey, slotLabel, items: [] };
-    group.items.push({ ...item, normalizedChannels });
-    groups.set(slotKey, group);
+function getItemDisplayTitle(item: ContentPlanItem) {
+  const fallbackTitle = item.generated_draft_title?.trim();
+  if (hasBrokenDisplayText(item.title) && fallbackTitle && !hasBrokenDisplayText(fallbackTitle)) {
+    return fallbackTitle;
   }
-
-  return [...groups.values()].map((group) => ({
-    ...group,
-    items: group.items.sort((left, right) => {
-      const leftChannel = left.normalizedChannels[0] ?? "";
-      const rightChannel = right.normalizedChannels[0] ?? "";
-      const compare =
-        channelSortWeight(leftChannel) - channelSortWeight(rightChannel) || leftChannel.localeCompare(rightChannel);
-      if (compare !== 0) return compare;
-      return left.order - right.order;
-    }),
-  }));
+  return item.title;
 }
 
 function getDominantDirection(
   contentMix?: ContentPlan["settings_json"] extends infer T ? T extends { content_mix?: infer U } ? U : never : never,
 ) {
   const entries = Object.entries({
-    practical: contentMix?.practical ?? 40,
-    educational: contentMix?.educational ?? 25,
-    news: contentMix?.news ?? 15,
-    opinion: contentMix?.opinion ?? 10,
-    critical: contentMix?.critical ?? 10,
+    practical: contentMix?.practical ?? 60,
+    educational: contentMix?.educational ?? 20,
+    news: contentMix?.news ?? 10,
+    opinion: contentMix?.opinion ?? 5,
+    critical: contentMix?.critical ?? 5,
   }) as Array<["practical" | "educational" | "news" | "opinion" | "critical", number]>;
 
   return entries.sort((left, right) => right[1] - left[1])[0]?.[0] ?? "educational";
@@ -253,7 +153,6 @@ function statusLabel(status: string) {
     running: "В работе",
     pending: "В очереди",
     completed: "Завершено",
-    cancelled: "Остановлено",
   };
 
   return labels[status] || status;
@@ -262,7 +161,7 @@ function statusLabel(status: string) {
 function getBadgeClass(status: string) {
   const normalized = status.toLowerCase();
   if (["published", "completed"].includes(normalized)) return "badge badge-success";
-  if (["draft", "planned", "cancelled"].includes(normalized)) return "badge badge-outline";
+  if (["draft", "planned"].includes(normalized)) return "badge badge-outline";
   if (["failed", "error"].includes(normalized)) return "badge badge-danger";
   if (["running", "in_progress"].includes(normalized)) return "badge badge-warning";
   if (["review-ready"].includes(normalized)) return "badge badge-info";
@@ -396,18 +295,16 @@ export default async function ContentPlanPage({
   const highlightId = highlight || "";
   const product = await fetchJson<ProductSummary | null>(`/products/${plan.product_id}`, null);
   const latestJob = await fetchJson<PlanJob | null>(`/content-plans/${plan.id}/latest-job`, null);
-  const isJobActive = latestJob?.status === "running" || latestJob?.status === "pending";
   const productChannels = product?.primary_channels ?? [];
   const contentMix = {
-    practical: plan.settings_json?.content_mix?.practical ?? 40,
-    educational: plan.settings_json?.content_mix?.educational ?? 25,
-    news: plan.settings_json?.content_mix?.news ?? 15,
-    opinion: plan.settings_json?.content_mix?.opinion ?? 10,
-    critical: plan.settings_json?.content_mix?.critical ?? 10,
+    practical: plan.settings_json?.content_mix?.practical ?? 60,
+    educational: plan.settings_json?.content_mix?.educational ?? 20,
+    news: plan.settings_json?.content_mix?.news ?? 10,
+    opinion: plan.settings_json?.content_mix?.opinion ?? 5,
+    critical: plan.settings_json?.content_mix?.critical ?? 5,
   };
   const dominantDirection = getDominantDirection(plan.settings_json?.content_mix);
   const visibleItems = plan.items.filter((item) => item.status !== "archived");
-  const archivedItemsCount = plan.items.length - visibleItems.length;
   const scheduledItems = visibleItems.filter((item) => Boolean(item.scheduled_at));
   const scheduledItemsByDay = new Map<string, ContentPlanItem[]>();
   for (const item of scheduledItems) {
@@ -423,10 +320,12 @@ export default async function ContentPlanPage({
     buildMonthCalendarFromParts(currentMonthDate.getUTCFullYear(), currentMonthDate.getUTCMonth()),
     buildMonthCalendarFromParts(nextMonthDate.getUTCFullYear(), nextMonthDate.getUTCMonth()),
   ];
-  const selectedDay = day || null;
+  const todayKey = buildDayKey(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const availableDayKeys = [...scheduledItemsByDay.keys()].sort();
+  const selectedDay =
+    day ||
+    (scheduledItemsByDay.has(todayKey) ? todayKey : availableDayKeys[0] ?? todayKey);
   const selectedDayItems = selectedDay ? scheduledItemsByDay.get(selectedDay) ?? [] : [];
-  const rightPanelItems = [...(selectedDay ? selectedDayItems : visibleItems)].sort(sortPlanItems);
-  const rightPanelGroups = groupPlanItemsBySlot(rightPanelItems, productChannels);
 
   return (
     <>
@@ -436,8 +335,7 @@ export default async function ContentPlanPage({
           <h1>{plan.theme || "План без фиксированной темы"}</h1>
           <p className="lead" style={{ marginTop: "12px", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
             <span className={getBadgeClass(plan.status)}>{statusLabel(plan.status)}</span>
-            <span>Посты: {visibleItems.length}</span>
-            {archivedItemsCount > 0 ? <span>Архив: {archivedItemsCount}</span> : null}
+            <span>Темы: {plan.items.length}</span>
           </p>
         </div>
       </header>
@@ -449,14 +347,21 @@ export default async function ContentPlanPage({
           <div className="panel-header" style={{ alignItems: "flex-start", gap: "20px" }}>
             <div style={{ flex: 1 }}>
               <span className="panel-kicker">Планирование</span>
-              <h2 className="panel-title">Основной контент-план</h2>
+              <h2 className="panel-title">Генерация тем</h2>
               <p className="form-hint" style={{ marginTop: "10px" }}>
-                Это живой календарь проекта. Можно переименовать его отдельно, а новые серии постов добавлять внутрь по теме.
+                Можно оставить тему пустой, чтобы система сама собрала идеи по контексту продукта. Или задать спецтему и
+                точное количество постов для отдельного блока.
               </p>
             </div>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "flex-end" }}>
               <PlanMixConfigurator planId={plan.id} initialMix={contentMix} />
               <QuickPostModal planId={plan.id} initialDirection={dominantDirection} channels={productChannels} />
+              <form action={buildPlanMaterialsAction}>
+                <input type="hidden" name="planId" value={plan.id} />
+                <SubmitButton className="btn btn-primary" pendingLabel="Собираем материалы...">
+                  Собрать материалы
+                </SubmitButton>
+              </form>
               <Link href={`/products/${plan.product_id}`} className="btn">
                 К продукту
               </Link>
@@ -473,14 +378,27 @@ export default async function ContentPlanPage({
             </div>
           </div>
 
-          <PlanGenerationControls
-            planId={plan.id}
-            initialMonth={plan.month}
-            initialTheme={plan.theme}
-            initialAutoGenerateIllustrations={plan.settings_json?.auto_generate_illustrations === true}
-            isJobActive={isJobActive}
-            availableChannels={productChannels}
-          />
+          <form action={generatePlanItemsAction} style={{ display: "grid", gap: "16px", gridTemplateColumns: "1fr 180px auto" }}>
+            <input type="hidden" name="planId" value={plan.id} />
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Спецтема</label>
+              <input
+                type="text"
+                name="themeOverride"
+                className="form-input"
+                placeholder="Например: идеи для Telegram о простом внедрении AI"
+              />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Сколько постов</label>
+              <input type="number" name="numItems" className="form-input" min={1} max={30} placeholder="Авто" />
+            </div>
+            <div style={{ display: "flex", alignItems: "end" }}>
+              <SubmitButton className="btn btn-primary" pendingLabel="Генерируем темы...">
+                Сгенерировать темы
+              </SubmitButton>
+            </div>
+          </form>
 
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "16px" }}>
             <span className="badge badge-outline">Practical {contentMix.practical}%</span>
@@ -577,7 +495,6 @@ export default async function ContentPlanPage({
                       }
 
                       const dayItems = scheduledItemsByDay.get(cell.key) ?? [];
-                      const dayChannels = getDayChannels(dayItems, productChannels);
                       const isSelected = cell.key === selectedDay;
                       const isPastInCurrentMonth =
                         calendar.year === currentMonthDate.getUTCFullYear() &&
@@ -589,7 +506,7 @@ export default async function ContentPlanPage({
                           key={cell.key}
                           href={`/content-plans/${plan.id}?day=${cell.key}`}
                           style={{
-                            minHeight: "58px",
+                            minHeight: "54px",
                             padding: "8px 6px",
                             borderRadius: "12px",
                             border: isSelected ? "1px solid rgba(176, 191, 119, 0.7)" : "1px solid var(--border)",
@@ -603,33 +520,8 @@ export default async function ContentPlanPage({
                           }}
                         >
                           <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>{cell.day}</span>
-                          <span style={{ display: "flex", gap: "3px", flexWrap: "wrap", minHeight: "18px" }}>
-                            {dayChannels.slice(0, 4).map((channel) => (
-                              <span
-                                key={`${cell.key}-${channel}`}
-                                title={channelTitle(channel)}
-                                aria-label={channelTitle(channel)}
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  minWidth: "18px",
-                                  height: "18px",
-                                  padding: "0 4px",
-                                  borderRadius: "999px",
-                                  background: "rgba(216, 232, 168, 0.72)",
-                                  color: "#33411a",
-                                  fontSize: "0.58rem",
-                                  fontWeight: 800,
-                                  lineHeight: 1,
-                                }}
-                              >
-                                {channelLabel(channel)}
-                              </span>
-                            ))}
-                            {dayChannels.length > 4 ? (
-                              <span style={{ fontSize: "0.68rem", color: "var(--muted)", fontWeight: 700 }}>+{dayChannels.length - 4}</span>
-                            ) : null}
+                          <span style={{ fontSize: "0.72rem", color: dayItems.length ? "var(--text)" : "var(--muted)" }}>
+                            {dayItems.length ? `${dayItems.length} пост` : ""}
                           </span>
                         </Link>
                       );
@@ -650,70 +542,161 @@ export default async function ContentPlanPage({
             >
               <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
                 <div>
-                  <div className="panel-kicker">{selectedDay ? "Посты на дату" : "Полный контент-план"}</div>
-                  <h3 style={{ margin: "6px 0 0", fontSize: "1.05rem" }}>
-                    {selectedDay ? formatDayLabel(selectedDay) : "Все посты плана"}
-                  </h3>
+                  <div className="panel-kicker">Выбранный день</div>
+                  <h3 style={{ margin: "6px 0 0", fontSize: "1.05rem" }}>{formatDayLabel(selectedDay)}</h3>
                 </div>
-                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                  {selectedDay ? (
-                    <Link href={`/content-plans/${plan.id}`} className="btn btn-sm">
-                      Назад
-                    </Link>
-                  ) : null}
-                  <span className="badge badge-outline">{rightPanelItems.length} в плане</span>
-                </div>
+                <span className="badge badge-outline">{selectedDayItems.length} в плане</span>
               </div>
 
-              {rightPanelItems.length ? (
+              {selectedDayItems.length ? (
                 <div className="list-container">
-                  {rightPanelGroups.map((group) => {
-                    return (
-                      <section
-                        key={group.slotKey}
-                        style={{
-                          border: "1px solid var(--border)",
-                          borderRadius: "16px",
-                          padding: "14px 16px",
-                          background: "rgba(255,255,255,0.76)",
-                        }}
-                      >
+                  {selectedDayItems
+                    .sort((left, right) => String(left.scheduled_at).localeCompare(String(right.scheduled_at)))
+                    .map((item) => (
+                      <div key={item.id} className="list-item compact-list-item">
                         <div style={{ minWidth: 0 }}>
-                          <div className="list-item-sub" style={{ marginBottom: "10px" }}>
-                            {group.slotLabel}
-                          </div>
-                          {group.items.map((item, index) => (
-                            <div
-                              key={item.id}
-                              style={{
-                                paddingTop: index ? "12px" : 0,
-                                marginTop: index ? "12px" : 0,
-                                borderTop: index ? "1px solid rgba(31, 44, 39, 0.08)" : "none",
-                              }}
-                            >
-                              <Link href={`/content-plans/${plan.id}/items/${item.id}`} className="list-item-title item-link" style={{ textDecoration: "none" }}>
-                                {item.title}
-                              </Link>
-                              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" }}>
-                                {item.normalizedChannels.map((channel) => (
-                                  <span key={`${item.id}-${channel}`} className="badge badge-outline" style={{ padding: "5px 8px", fontSize: "0.68rem" }}>
-                                    {channelLabel(channel)}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
+                          <div className="list-item-sub">{formatScheduledLabel(item.scheduled_at)}</div>
+                          <Link href={`/content-plans/${plan.id}/items/${item.id}`} className="list-item-title item-link" style={{ textDecoration: "none" }}>
+                            {getItemDisplayTitle(item)}
+                          </Link>
                         </div>
-                      </section>
-                    );
-                  })}
+                        <span className={getBadgeClass(item.status)}>{statusLabel(item.status)}</span>
+                      </div>
+                    ))}
                 </div>
               ) : (
                 <div className="empty-state compact-empty-state">
-                  <strong>{selectedDay ? "На этот день постов нет" : "В плане пока нет постов"}</strong>
+                  <strong>На этот день постов нет</strong>
                 </div>
               )}
             </div>
+          </div>
+        </article>
+
+        <article className="panel">
+          <div className="panel-header">
+            <div>
+              <span className="panel-kicker">Материалы</span>
+              <h2 className="panel-title">Очередь контента</h2>
+            </div>
+          </div>
+
+          <div className="list-container">
+            {visibleItems.length > 0 ? (
+              visibleItems.map((item) => {
+                const isHighlighted = item.id === highlightId;
+
+                return (
+                  <div
+                    key={item.id}
+                    id={`item-${item.id}`}
+                    className="list-item"
+                    style={{
+                      alignItems: "flex-start",
+                      padding: "24px 0",
+                      borderLeft: isHighlighted ? "3px solid rgba(255, 210, 110, 0.85)" : undefined,
+                      paddingLeft: isHighlighted ? "16px" : undefined,
+                      background: isHighlighted ? "rgba(255, 210, 110, 0.05)" : undefined,
+                      borderRadius: isHighlighted ? "16px" : undefined,
+                      scrollMarginTop: "120px",
+                    }}
+                  >
+                    <div style={{ paddingRight: "40px", flex: 1 }}>
+                      <span className="list-item-sub" style={{ display: "block", marginBottom: "8px" }}>
+                        #{item.order + 1} · {formatArticleType(item.article_type)}
+                      </span>
+                      <Link
+                        href={`/content-plans/${plan.id}/items/${item.id}`}
+                        className="list-item-title item-link"
+                        style={{ fontSize: "1.1rem", textDecoration: "none" }}
+                      >
+                        {getItemDisplayTitle(item)}
+                      </Link>
+                      <p style={{ color: "var(--muted)", margin: "8px 0", fontSize: "0.9rem", maxWidth: "800px" }}>
+                        {item.angle || "Угол подачи пока не задан."}
+                      </p>
+                      <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
+                        {isHighlighted ? <span className="badge badge-warning">Новое</span> : null}
+                        {item.target_keywords.map((keyword) => (
+                          <span key={keyword} className="badge badge-outline" style={{ fontSize: "0.7rem" }}>
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "12px", minWidth: "250px" }}>
+                      {item.status === "review-ready" ? (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            padding: "8px 14px",
+                            borderRadius: "999px",
+                            background: "rgba(112, 214, 130, 0.12)",
+                            border: "1px solid rgba(112, 214, 130, 0.35)",
+                            color: "#86f09a",
+                            fontSize: "0.82rem",
+                            fontWeight: 600,
+                          }}
+                        >
+                          <span aria-hidden="true">✓</span>
+                          <span>Пост готов</span>
+                        </span>
+                      ) : (
+                        <span className={getBadgeClass(item.status)}>{statusLabel(item.status)}</span>
+                      )}
+                      <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.85rem", textAlign: "right" }}>{getStatusHintClean(item.status)}</p>
+                      {item.scheduled_at ? (
+                        <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.8rem", textAlign: "right" }}>
+                          План: {new Date(item.scheduled_at).toLocaleString("ru-RU")}
+                        </p>
+                      ) : null}
+                      {item.published_at ? (
+                        <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.8rem", textAlign: "right" }}>
+                          Опубликовано: {new Date(item.published_at).toLocaleString("ru-RU")}
+                        </p>
+                      ) : null}
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        {shouldShowGenerateButton(item.status) ? (
+                          <form action={generateItemBundleAction}>
+                            <input type="hidden" name="planId" value={plan?.id ?? ""} />
+                            <input type="hidden" name="itemId" value={item.id} />
+                            <SubmitButton
+                              className="btn btn-primary"
+                              pendingLabel={item.status === "draft" ? "Перегенерируем пост и иллюстрацию..." : "Генерируем пост и иллюстрацию..."}
+                            >
+                              Генерация
+                            </SubmitButton>
+                          </form>
+                        ) : null}
+                        {false ? (
+                          <form action={moveStatusAction}>
+                            <input type="hidden" name="planId" value={plan?.id ?? ""} />
+                            <input type="hidden" name="itemId" value={item.id} />
+                            <input type="hidden" name="status" value="review-ready" />
+                            <SubmitButton className="btn" pendingLabel="Отмечаем пост как готовый...">
+                              Готово
+                            </SubmitButton>
+                          </form>
+                        ) : null}
+                        {item.status === "draft" || item.status === "review-ready" || item.status === "published" ? (
+                          <Link href={`/content-plans/${plan.id}/items/${item.id}`} className="btn">
+                            Открыть пост
+                          </Link>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="empty-state">
+                <strong>В очереди пока пусто</strong>
+                <p>Нажмите «Сгенерировать темы», чтобы собрать новый план и потом перейти к генерации материалов.</p>
+              </div>
+            )}
           </div>
         </article>
       </section>
