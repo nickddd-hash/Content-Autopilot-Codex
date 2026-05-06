@@ -29,8 +29,9 @@ const FREQUENCY_OPTIONS = [
 export default function ProductPlanForm({ productId }: ProductPlanFormProps) {
   const currentMonth = useMemo(() => getCurrentMonthValue(), []);
   const [theme, setTheme] = useState("");
-  const [frequencyIndex, setFrequencyIndex] = useState(1); // 2 раза в неделю по умолчанию
+  const [frequencyIndex, setFrequencyIndex] = useState(1);
   const [numItems, setNumItems] = useState(FREQUENCY_OPTIONS[1].defaultCount);
+  const [generateIllustrations, setGenerateIllustrations] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -54,6 +55,7 @@ export default function ProductPlanForm({ productId }: ProductPlanFormProps) {
         settings_json: {
           num_items_default: numItems,
           frequency_label: FREQUENCY_OPTIONS[frequencyIndex].label,
+          auto_generate_illustrations: generateIllustrations,
         },
       });
 
@@ -112,6 +114,38 @@ export default function ProductPlanForm({ productId }: ProductPlanFormProps) {
           value={theme}
           onChange={(e) => setTheme(e.target.value)}
         />
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "14px 16px",
+          borderRadius: "12px",
+          border: "1px solid var(--border)",
+          background: "rgba(255,255,255,0.03)",
+        }}
+      >
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <strong style={{ fontSize: "14px" }}>Автогенерация иллюстраций</strong>
+            <HelpHint text="Если включено, для каждого поста при генерации будет автоматически создаваться иллюстрация. Можно включить позже вручную для каждого поста." />
+          </div>
+          <p style={{ fontSize: "12px", color: "var(--text-muted)", margin: "2px 0 0" }}>
+            По умолчанию выключено — иллюстрации генерируются вручную
+          </p>
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={generateIllustrations}
+            onChange={(e) => setGenerateIllustrations(e.target.checked)}
+          />
+          <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+            {generateIllustrations ? "Включено" : "Выключено"}
+          </span>
+        </label>
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "12px" }}>

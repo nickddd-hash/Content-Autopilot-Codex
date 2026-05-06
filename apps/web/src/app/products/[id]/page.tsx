@@ -7,7 +7,6 @@ import { deleteJson, fetchJson, patchJson, statusLabel } from "@/lib/api";
 
 import ProductChannelsPanel from "./ProductChannelsPanel";
 import ProductContextForm from "./ProductContextForm";
-import ProductPlanForm from "./ProductPlanForm";
 
 type ProductPageProps = {
   params: Promise<{ id: string }>;
@@ -215,7 +214,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
               )}
             </div>
 
-            <ProductPlanForm productId={productId} />
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <Link href={`/products/${productId}/new-plan`} className="btn btn-primary">
+                Создать план
+              </Link>
+            </div>
           </article>
         </div>
 
