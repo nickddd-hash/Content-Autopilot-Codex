@@ -39,6 +39,8 @@ type ContentPlan = {
     };
     needs_reschedule?: boolean;
     reschedule_reason?: string | null;
+    num_items_default?: number;
+    frequency_label?: string;
   };
   items: ContentPlanItem[];
 };
