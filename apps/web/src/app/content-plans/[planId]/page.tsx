@@ -391,7 +391,7 @@ export default async function ContentPlanPage({
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Сколько постов</label>
-              <input type="number" name="numItems" className="form-input" min={1} max={30} placeholder="Авто" />
+              <input type="number" name="numItems" className="form-input" min={1} max={30} placeholder="Авто" defaultValue={plan.settings_json?.num_items_default ?? ""} />
             </div>
             <div style={{ display: "flex", alignItems: "end" }}>
               <SubmitButton className="btn btn-primary" pendingLabel="Генерируем темы...">
