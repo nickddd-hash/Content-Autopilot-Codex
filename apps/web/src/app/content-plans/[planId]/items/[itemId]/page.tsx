@@ -422,25 +422,6 @@ export default async function ContentPlanItemPage({
           </p>
         </div>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          {canGenerate ? (
-            <form action={startGenerationAction}>
-              <input type="hidden" name="planId" value={planId} />
-              <input type="hidden" name="itemId" value={itemId} />
-              <SubmitButton
-                className="btn btn-primary"
-                pendingLabel={item.status === "draft" ? "Перегенерируем пост..." : "Генерируем пост..."}
-              >
-                {item.status === "draft" ? "Перегенерировать пост" : "Сгенерировать пост"}
-              </SubmitButton>
-            </form>
-          ) : null}
-          <form action={generateIllustrationAction}>
-            <input type="hidden" name="planId" value={planId} />
-            <input type="hidden" name="itemId" value={itemId} />
-            <SubmitButton className="btn" pendingLabel="Генерируем иллюстрацию...">
-              {generatedImageUrl ? "Перегенерировать иллюстрацию" : "Сгенерировать иллюстрацию"}
-            </SubmitButton>
-          </form>
           {false ? (
             <form action={updateStatusAction}>
               <input type="hidden" name="planId" value={planId} />
@@ -547,9 +528,18 @@ export default async function ContentPlanItemPage({
           ) : null}
 
           <article className="panel">
-            <div className="panel-header">
-              <span className="panel-kicker">Визуал</span>
-              <h2 className="panel-title">Иллюстрация</h2>
+            <div className="panel-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+              <div>
+                <span className="panel-kicker">Визуал</span>
+                <h2 className="panel-title">Иллюстрация</h2>
+              </div>
+              <form action={generateIllustrationAction}>
+                <input type="hidden" name="planId" value={planId} />
+                <input type="hidden" name="itemId" value={itemId} />
+                <SubmitButton className="btn" pendingLabel="Генерируем иллюстрацию...">
+                  {generatedImageUrl ? "Перегенерировать иллюстрацию" : "Сгенерировать иллюстрацию"}
+                </SubmitButton>
+              </form>
             </div>
 
             {generatedImageUrl ? (
@@ -629,9 +619,23 @@ export default async function ContentPlanItemPage({
           </article>
 
           <article className="panel">
-            <div className="panel-header">
-              <span className="panel-kicker">Основной материал</span>
-              <h2 className="panel-title">Telegram-пост</h2>
+            <div className="panel-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+              <div>
+                <span className="panel-kicker">Основной материал</span>
+                <h2 className="panel-title">Telegram-пост</h2>
+              </div>
+              {canGenerate ? (
+                <form action={startGenerationAction}>
+                  <input type="hidden" name="planId" value={planId} />
+                  <input type="hidden" name="itemId" value={itemId} />
+                  <SubmitButton
+                    className="btn btn-primary"
+                    pendingLabel={item.status === "draft" ? "Перегенерируем пост..." : "Генерируем пост..."}
+                  >
+                    {item.status === "draft" ? "Перегенерировать пост" : "Сгенерировать пост"}
+                  </SubmitButton>
+                </form>
+              ) : null}
             </div>
 
             {(item.generated_summary || item.generated_hook || item.generated_cta) ? (
