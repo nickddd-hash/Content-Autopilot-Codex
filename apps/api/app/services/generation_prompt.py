@@ -202,6 +202,9 @@ Lifecycle stage: {product.lifecycle_stage or "not specified"}
 Brand summary:
 {brand_summary}
 
+Full product context (deep strategy — treat this as the primary source of intent):
+{product.full_description or "not specified"}
+
 Target audience:
 {product.target_audience or "not specified"}
 
