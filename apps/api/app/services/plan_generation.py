@@ -62,6 +62,9 @@ What to avoid by default:
 - abstract AI education with no recognizable situation
 - technical overload, jargon and architecture talk for its own sake
 - topics that feel like hype with no link to real business pains
+- STRICTLY FORBIDDEN: Using outdated years (like 2025) as if they were current or future. We are in May 2026.
+- AVOID: AI-cliches and over-used openings like "Imagine:", "In today's world:", "It's no secret that:", "We live in an era:", "Welcome to the future:".
+- AVOID: Over-dramatizing business situations. Keep the tone grounded, professional, and practical.
 """.strip()
 
 PAIN_DIVERSITY_AND_RESEARCH_RULES = """
@@ -244,61 +247,61 @@ def _build_directional_fallback_item(
 ) -> dict[str, Any]:
     practical = [
         (
-            f"Где {focus} реально экономит время уже на первой неделе",
-            f"Показать через 3 простых сценария, как {focus} снижает рутину для аудитории: {audience}.",
+            f"Как {focus} экономит время на практике",
+            f"3 сценария снижения рутины для аудитории: {audience}.",
             "checklist",
         ),
         (
-            f"С чего начать {focus}, если в работе много хаоса",
-            "Дать спокойный и понятный вход без перегруза инструментами и техничностью.",
+            f"С чего начать {focus}: пошаговый план",
+            "Понятный вход в тему без технического перегруза.",
             "guide",
         ),
     ]
     educational = [
         (
-            f"Что такое {focus} простыми словами и без перегруза",
-            "Объяснить тему человеческим языком для людей, которые знакомы с AI только поверхностно.",
+            f"Как работает {focus}: разбор процесса",
+            "Показать внутреннюю механику и логику процесса простыми словами.",
             "educational",
         ),
         (
-            f"Что люди чаще всего неправильно понимают про {focus}",
-            "Разобрать базовые заблуждения и снять тревогу вокруг AI.",
+            f"3 мифа про {focus}, которые мешают росту",
+            "Разобрать заблуждения и показать реальную практику.",
             "educational",
         ),
     ]
     news = [
         (
-            f"Что нового происходит вокруг {focus} и почему это вообще важно",
-            "Взять новостной или обзорный угол и объяснить его простым языком без шума.",
+            f"Что нового в {focus}: главные изменения",
+            "Краткий обзор изменений и их прикладного значения.",
             "news",
         ),
         (
-            f"Какие AI-новости действительно стоит отслеживать, а какие нет",
-            "Показать читателю, как отличать важные сигналы от хайпа.",
+            f"Тренды {focus} 2026: к чему готовиться",
+            "Анализ направления развития и практические выводы.",
             "news",
         ),
     ]
     opinion = [
         (
-            f"Мой взгляд на {focus}: что здесь действительно важно",
-            "Дать зрелую позицию без пафоса и техно-восторга.",
+            f"Почему {focus} — это база для системы",
+            "Авторский взгляд на стратегическую важность темы.",
             "opinion",
         ),
         (
-            f"Почему разговор о {focus} часто уходит не туда",
-            "Показать авторское мнение и переупаковать тему в ясную рамку.",
+            f"Честный взгляд на {focus}: за и против",
+            "Зрелая позиция по внедрению и использованию.",
             "opinion",
         ),
     ]
     critical = [
         (
-            f"Где вокруг {focus} слишком много хайпа и слишком мало пользы",
-            "Критически разобрать завышенные ожидания и вернуть разговор в реальность.",
+            f"Где в {focus} скрыты риски и как их избежать",
+            "Критический разбор слабых мест и способы защиты.",
             "critical",
         ),
         (
-            f"Почему не всё в {focus} стоит внедрять или повторять",
-            "Показать ограничения, риски и ложные ожидания без алармизма.",
+            f"Почему {focus} иногда не работает",
+            "Анализ ошибок при внедрении и реальные ограничения.",
             "critical",
         ),
     ]
@@ -365,28 +368,20 @@ def build_plan_generation_messages(
 
     system_prompt = f"""
 You are a senior content strategist for a personal content autopilot.
+Today is {datetime.now().strftime('%Y-%m-%d')}.
 Your job is to generate a list of {num_items} structured content plan items for a given month and theme.
-Focus on creating high-signal, practical, understandable, varied topics that align with the brand and product.
-Keep the plan business-oriented, but do not collapse every topic into identical automation posts. Keep a healthy mix of practical, educational, news, opinion and critical topics when requested.
+
+PRIMARY GOAL: Move away from generic AI news. The core of the plan must be niche-specific professional scenarios.
+STRATEGY:
+- 70% of topics must target specific professional roles or generalized expert groups (e.g., "Helping practitioners", "Local service owners", "Content creators", "Legal/Consulting").
+- For each niche topic, identify a high-signal process that is currently manual/painful (e.g., "lead qualification for an astrologer", "appointment scheduling for a clinic").
+- Use the research candidates only as triggers; if a candidate is broad, force it into a specific niche angle relevant to the target audience.
+- Holistic Fact Rule: Each topic must be a finished piece of professional information, not a vague promise.
+
 {BASE_STRATEGY_RULES}
 {BASE_ANTI_RULES}
 {PAIN_DIVERSITY_AND_RESEARCH_RULES}
-
-Return valid JSON with this exact shape:
-{{
-  "items": [
-    {{
-      "title": "string",
-      "angle": "string",
-      "target_keywords": ["string", "string"],
-      "article_type": "string (e.g. educational, checklist, comparison, news, opinion, critical)",
-      "cta_type": "string (e.g. soft, hard, none)",
-      "content_direction": "string (one of practical, educational, news, opinion, critical)",
-      "research_candidate_ids": ["uuid string"]
-    }}
-  ]
-}}
-""".strip()
+...""".strip()
 
     user_prompt = f"""
 Product name: {product.name}

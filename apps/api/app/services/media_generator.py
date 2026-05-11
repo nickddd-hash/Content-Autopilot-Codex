@@ -36,7 +36,13 @@ async def _read_system_setting(session: AsyncSession, key: str) -> str | None:
 
 
 async def _get_image_runtime(session: AsyncSession) -> tuple[str, str, str, str]:
-    provider = await _read_system_setting(session, "LLM_PROVIDER") or os.getenv("LLM_PROVIDER") or "openai"
+    provider = (
+        await _read_system_setting(session, "IMAGE_PROVIDER")
+        or os.getenv("IMAGE_PROVIDER")
+        or await _read_system_setting(session, "LLM_PROVIDER")
+        or os.getenv("LLM_PROVIDER")
+        or "openai"
+    )
     provider = provider.strip().lower()
     shared_model = await _read_system_setting(session, "IMAGE_MODEL") or os.getenv("IMAGE_MODEL") or ""
 
@@ -71,6 +77,28 @@ async def _get_image_runtime(session: AsyncSession) -> tuple[str, str, str, str]
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="OPENAI_API_KEY is not configured for illustration generation.",
+            )
+
+        return provider, api_key, base_url.rstrip("/"), model
+
+    if provider == "google":
+        api_key = await _read_system_setting(session, "GOOGLE_API_KEY") or settings.google_api_key or os.getenv("GOOGLE_API_KEY")
+        base_url = (
+            await _read_system_setting(session, "GOOGLE_BASE_URL")
+            or os.getenv("GOOGLE_BASE_URL")
+            or "https://generativelanguage.googleapis.com/v1beta"
+        )
+        model = (
+            shared_model
+            or await _read_system_setting(session, "GOOGLE_IMAGE_MODEL")
+            or os.getenv("GOOGLE_IMAGE_MODEL")
+            or "imagen-3.0-generate-001"
+        )
+
+        if not api_key:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="GOOGLE_API_KEY is not configured for illustration generation.",
             )
 
         return provider, api_key, base_url.rstrip("/"), model
@@ -197,6 +225,27 @@ async def generate_illustration_for_item(session: AsyncSession, item: ContentPla
                         },
                     },
                 )
+            elif provider == "google":
+                # Check if it's an Imagen model or Gemini-based image model (Nano Banana)
+                if "gemini" in model.lower() or "nano-banana" in model.lower():
+                    # Gemini 3.1+ Nano Banana via generateContent
+                    response = await client.post(
+                        f"{base_url}/models/{model}:generateContent?key={api_key}",
+                        headers={"Content-Type": "application/json"},
+                        json={
+                            "contents": [{"parts": [{"text": prompt}]}],
+                        },
+                    )
+                else:
+                    # Google Imagen 3 via AI Studio REST (predict)
+                    response = await client.post(
+                        f"{base_url}/models/{model}:predict?key={api_key}",
+                        headers={"Content-Type": "application/json"},
+                        json={
+                            "instances": [{"prompt": prompt}],
+                            "parameters": {"sampleCount": 1}
+                        },
+                    )
             else:
                 response = await client.post(
                     f"{base_url}/images/generations",
@@ -214,14 +263,70 @@ async def generate_illustration_for_item(session: AsyncSession, item: ContentPla
         ) from exc
 
     if response.status_code >= 400:
+        detail = ""
+        try:
+            detail = f" | Detail: {response.text}"
+        except:
+            pass
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Illustration generation failed with status {response.status_code}.",
+            detail=f"Illustration generation failed with status {response.status_code}.{detail}",
         )
 
     data = response.json()
     mime_type = "image/png"
-    if provider == "openrouter":
+    image_bytes: bytes | None = None
+
+    if provider == "google":
+        # Handle both Imagen and Gemini-based results
+        if "gemini" in model.lower() or "nano-banana" in model.lower():
+            candidates = data.get("candidates")
+            if not isinstance(candidates, list) or not candidates:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Gemini Image model did not return candidates.",
+                )
+            content = candidates[0].get("content")
+            parts = content.get("parts") if isinstance(content, dict) else None
+            if not isinstance(parts, list) or not parts:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Gemini Image model did not return parts.",
+                )
+            
+            # Find the inline_data part
+            for part in parts:
+                inline_data = part.get("inline_data")
+                if isinstance(inline_data, dict):
+                    b64_data = inline_data.get("data")
+                    mime_type = inline_data.get("mime_type", "image/png")
+                    if b64_data:
+                        image_bytes = base64.b64decode(b64_data)
+                        break
+            
+            if not image_bytes:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Gemini Image model did not return image data in parts.",
+                )
+        else:
+            predictions = data.get("predictions")
+            if not isinstance(predictions, list) or not predictions:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Google Imagen did not return any predictions.",
+                )
+            pred = predictions[0]
+            b64_data = pred.get("bytesBase64Encoded")
+            mime_type = pred.get("mimeType", "image/png")
+            if not b64_data:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Google Imagen did not return image data.",
+                )
+            image_bytes = base64.b64decode(b64_data)
+
+    elif provider == "openrouter":
         choices = data.get("choices")
         if not isinstance(choices, list) or not choices:
             raise HTTPException(

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
+
+from app.core.config import settings
 from app.models import BrandProfile, ContentPlan, ContentPlanItem, Product
 from app.schemas.content_plan import PLAN_DIRECTION_KEYS
 
@@ -21,14 +24,21 @@ What must not appear by default:
 - technical overload, stack talk and jargon for non-technical readers
 - aggressive selling, empty motivation or consultant cliches
 - western tools as the everyday default for Russia/CIS unless there is a clear reason
+- STRICTLY FORBIDDEN: Using outdated years (like 2025) as if they were current or future. We are in May 2026.
+- AVOID: AI-cliches and over-used openings like "Imagine:", "In today's world:", "It's no secret that:", "We live in an era:", "Welcome to the future:".
+- AVOID: Over-dramatizing business situations. Keep the tone grounded, professional, and practical.
 """.strip()
 
 POST_CONSTRUCTION_RULES = """
-How to construct the post:
-- Start from a recognizable business pain or situation, not from a tool, release or hype topic.
-- Identify where the problem shows up in the business process.
-- Use the tool, AI release, case or innovation only as a fresh angle on that business pain.
-- Repeated pains are allowed, but the post must add new value through a new solution, new audience angle, new process angle, new limitation, new case or new implementation model.
+How to construct the post (Expert Narrative Architecture):
+1. THE SHARP HOOK: Start with a non-obvious observation, a counter-intuitive fact, or a "brutal truth" about the current business process. No "In today's world" or "Imagine".
+2. THE CONFLICT/DEPTH: Describe the invisible cost of the current manual process. Show the friction, the energy loss, and the systemic failure, not just "time loss".
+3. THE MECHANISM (THE "HOW"): Explain exactly how the AI/automation works under the hood. Do not just say "it automates". Say "The agent parses the incoming intent, checks the client's history in the CRM, and generates a personalized offer based on previous purchase velocity."
+4. THE CONCRETE CASE: Provide a detailed breakdown of a specific implementation. Include the "Before" (manual chaos) and "After" (automated system). Use specific numbers, roles, and process steps.
+5. THE STRATEGIC INSIGHT: End with a conclusion that shifts the reader's perspective. Why is this a competitive advantage? What is the long-term impact on the business model?
+6. FACT-DENSITY: Every sentence must contain a new fact, a specific action, or a logical step. Delete any sentence that serves as a generic transition.
+7. TARGET LENGTH: Aim for 1500-2500 characters. Use the space to provide deep value, detailed examples, and thorough explanations. A post must be a "finished piece of information" - a holistic fact.
+8. FORMATTING: Use bolding for key terms, lists for steps, and clear paragraph breaks to ensure readability of long-form content.
 """.strip()
 
 
@@ -38,10 +48,21 @@ def _join_lines(values: list[str]) -> str:
     return "\n".join(f"- {value}" for value in values)
 
 
-def _build_channel_instruction(channels: list[str], *, include_illustration: bool = False) -> str:
+def _build_channel_instruction(channels: list[str], *, include_illustration: bool = False, is_longread_capable: bool = False) -> str:
     normalized_channels = [channel.lower() for channel in channels]
 
     if "telegram" in normalized_channels:
+        if is_longread_capable:
+            return (
+                "Primary format: Telegram longread.\n"
+                "- draft_markdown must be a ready-to-post Telegram text.\n"
+                "- You have a high character limit (up to 4000). Use it to provide deep value, detailed examples and thorough explanations.\n"
+                "- Even for long posts, use short paragraphs, strong opening, and mobile-friendly formatting.\n"
+                "- Do not use bulky section headers or article-style titles. Keep it a native Telegram post, just a deep and long one.\n"
+                "- Avoid em dashes and en dashes. Prefer commas, periods, colons or a short hyphen when really needed.\n"
+                "- Keep the result calm, practical, human and credible.\n"
+                "- If an illustration is included, it will be sent together with the post."
+            )
         if include_illustration:
             return (
                 "Primary format: Telegram post with illustration.\n"
@@ -57,8 +78,7 @@ def _build_channel_instruction(channels: list[str], *, include_illustration: boo
         return (
             "Primary format: Telegram post.\n"
             "- draft_markdown must be a ready-to-post Telegram text, not an article.\n"
-            "- Aim for roughly 600 to 900 characters.\n"
-            "- Keep the post short enough to fit into one Telegram publication together with an illustration.\n"
+            "- Aim for 1200 to 2200 characters to ensure depth and holistic facts.\n"
             "- Use short paragraphs, strong opening, concrete examples and one clear takeaway.\n"
             "- Do not use long article headings, subheadings or bulky section structure.\n"
             "- Avoid em dashes and en dashes. Prefer commas, periods, colons or a short hyphen when really needed.\n"
@@ -161,13 +181,21 @@ def build_generation_messages(
             include_illustration = raw_include_illustration
     if not selected_channels:
         selected_channels = list(available_channels)
-    channel_instruction = _build_channel_instruction(selected_channels, include_illustration=include_illustration)
+    
+    is_longread_capable = bool(settings.telegram_api_id and settings.telegram_api_hash)
+    channel_instruction = _build_channel_instruction(
+        selected_channels, 
+        include_illustration=include_illustration,
+        is_longread_capable=is_longread_capable
+    )
     direction_instruction = _build_direction_instruction(content_direction)
 
     system_prompt = f"""
 You are a senior content strategist and writer for a personal content autopilot.
+Today is {datetime.now().strftime('%Y-%m-%d')}.
 
 Your job is to produce a high-quality first draft package for one content plan item.
+IMPORTANT: All content must be strictly up-to-date. Ensure titles and topics are relevant for {datetime.now().year} and onwards. NEVER mention 2025 or other past years as if they were the current or upcoming year.
 The output must be practical, specific, human-sounding, and useful.
 Avoid generic AI filler, vague motivation, repetitive advice, bloated article structure and obvious AI phrasing patterns.
 {BASE_STRATEGY_RULES}
@@ -177,6 +205,14 @@ Avoid generic AI filler, vague motivation, repetitive advice, bloated article st
 {channel_instruction}
 {direction_instruction}
 
+Visual Concept Guidelines (for asset_brief):
+- Avoid generic stock-photo descriptions.
+- Use visual metaphors that reflect the post's core message.
+- MANDATORY: Include a "human factor" or something "alive" in the scene (a person, hands, a visible expert, a founder, a student, etc.). 
+- Describe composition, lighting (e.g., "warm morning light"), and mood.
+- Style should be editorial, clean, and modern.
+- DO NOT use text in the image.
+
 Return valid JSON with this shape:
 {{
   "draft_title": "string",
@@ -184,6 +220,7 @@ Return valid JSON with this shape:
   "summary": "string",
   "hook": "string",
   "cta": "string",
+  "asset_brief": "string",
   "repurposing": {{
     "post": "string",
     "carousel": ["string", "string"],
@@ -192,6 +229,7 @@ Return valid JSON with this shape:
   "review_notes": ["string", "string"]
 }}
 """.strip()
+
 
     user_prompt = f"""
 Product name: {product.name}

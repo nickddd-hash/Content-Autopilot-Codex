@@ -5,13 +5,17 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+
+from app.core.config import settings
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import BrandProfile, ContentPlan, ContentPlanItem, JobRun, Product
+from app.models.evaluator import ContentEvaluationResult
 from app.schemas.job_run import StartGenerationResponse
 from app.services.generation_prompt import build_generation_messages
+from app.services.content_evaluation import evaluate_item_content
 from app.services.llm_client import LLMClientError, generate_json
 from app.services.text_normalization import normalize_user_facing_text
 
@@ -37,9 +41,13 @@ async def get_content_plan_item_or_404(
     if plan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content plan not found.")
 
-    item_statement = select(ContentPlanItem).where(
-        ContentPlanItem.id == item_id,
-        ContentPlanItem.plan_id == plan_id,
+    item_statement = (
+        select(ContentPlanItem)
+        .where(
+            ContentPlanItem.id == item_id,
+            ContentPlanItem.plan_id == plan_id,
+        )
+        .options(selectinload(ContentPlanItem.evaluation_results).selectinload(ContentEvaluationResult.evaluator))
     )
     item = await session.scalar(item_statement)
     if item is None:
@@ -64,6 +72,10 @@ def _sanitize_generation_payload(value: Any) -> Any:
 
 def _should_enforce_telegram_caption_limit(item: ContentPlanItem) -> bool:
     if not isinstance(item.research_data, dict):
+        return False
+
+    # If Userbot is configured, we allow longreads and don't enforce the strict caption limit.
+    if settings.telegram_api_id and settings.telegram_api_hash:
         return False
 
     raw_channels = item.research_data.get("channel_targets")
@@ -131,29 +143,26 @@ def _build_fallback_generation_payload(item: ContentPlanItem, product: Product |
     product_name = product.name if product else "Product"
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "generator_mode": "fallback_stub",
+        "generator_mode": "failed_stub",
         "draft_title": item.title,
         "draft_markdown": (
-            f"{item.title}\n\n"
-            f"{item.angle or 'Эта тема помогает быстро понять проблему и увидеть следующий рабочий шаг.'}\n\n"
-            "Обычно хаос начинается не с отсутствия инструментов, а с отсутствия понятного сценария. "
-            "Если показать один конкретный процесс, где AI реально экономит время, вход в тему становится спокойнее.\n\n"
-            "Начать лучше с одной повторяющейся задачи и посмотреть, что можно упростить уже на этой неделе."
+            "🔴 ОШИБКА ГЕНЕРАЦИИ\n\n"
+            "Не удалось сгенерировать контент из-за временного ограничения API (лимиты запросов).\n"
+            "Пожалуйста, нажмите «Перегенерировать» через 1-2 минуты.\n\n"
+            f"Тема: {item.title}\n"
+            f"Тезис: {item.angle or 'Не указан'}"
         ),
-        "summary": f"Черновой fallback draft для {product_name}.",
-        "hook": "Если AI до сих пор кажется сложной игрушкой, проблема часто не в AI, а в подаче.",
-        "cta": "Если хотите, можно разобрать один ваш процесс и понять, где автоматизация даст реальную пользу.",
+        "summary": "Генерация не удалась (ошибка лимитов).",
+        "hook": "Ошибка генерации.",
+        "cta": "Попробовать позже.",
         "repurposing": {
-            "post": f"Короткий пост по теме: {item.title}",
-            "carousel": [
-                "Где болит сильнее всего",
-                "Какой рабочий сценарий помогает первым",
-            ],
-            "reel_script": f"Короткий видео-сценарий по теме: {item.title}",
+            "post": "Ошибка",
+            "carousel": [],
+            "reel_script": "Ошибка",
         },
         "review_notes": [
-            "Черновик сохранён в fallback-режиме и может требовать ручной докрутки.",
-            "После восстановления основной модели стоит перегенерировать текст.",
+            "ВНИМАНИЕ: Это не готовый пост, а заглушка ошибки.",
+            "Нажмите кнопку перегенерации, когда лимиты API восстановятся.",
         ],
     }
 
@@ -194,7 +203,9 @@ def build_content_plan_item_detail(item: ContentPlanItem) -> dict[str, Any]:
         "generated_summary": normalize_user_facing_text(str(generation_payload.get("summary"))) if generation_payload.get("summary") else None,
         "generated_hook": normalize_user_facing_text(str(generation_payload.get("hook"))) if generation_payload.get("hook") else None,
         "generated_cta": normalize_user_facing_text(str(generation_payload.get("cta"))) if generation_payload.get("cta") else None,
+        "generated_asset_brief": normalize_user_facing_text(str(generation_payload.get("asset_brief"))) if generation_payload.get("asset_brief") else None,
         "generation_mode": item.article_review.get("generation_mode") if isinstance(item.article_review, dict) else None,
+        "evaluation_results": item.evaluation_results,
     }
 
 
@@ -283,7 +294,89 @@ async def start_manual_generation(
     await session.commit()
     await session.refresh(job_run)
 
+    # Start evaluation in background
+    import asyncio
+    async def _bg_eval():
+        from app.db.session import AsyncSessionLocal
+        async with AsyncSessionLocal() as bg_session:
+            try:
+                await evaluate_item_content(bg_session, item.id)
+            except Exception:
+                pass
+    
+    asyncio.create_task(_bg_eval())
+
     return StartGenerationResponse(
         job_run=job_run,
         item_status=item.status,
     )
+
+
+async def regenerate_item_visual_brief(
+    session: AsyncSession,
+    plan_id: UUID,
+    item_id: UUID,
+) -> dict[str, Any]:
+    plan, item = await get_content_plan_item_or_404(session, plan_id, item_id)
+    
+    # We need the full context of the post to generate a good brief
+    research_data = item.research_data if isinstance(item.research_data, dict) else {}
+    generation_payload = research_data.get("generation_payload", {})
+    if not isinstance(generation_payload, dict):
+        generation_payload = {}
+        
+    content_text = generation_payload.get("draft_markdown", "")
+    if not content_text:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot generate visual brief without post content.")
+
+    system_prompt = (
+        "You are a visual creative director. Your job is to create a detailed visual brief for an editorial illustration.\n"
+        "The illustration will accompany a specific blog post.\n"
+        "Guidelines:\n"
+        "- MANDATORY: Include a human factor or something alive (person, expert, hands, student, silhouette).\n"
+        "- Style: clean, modern, trustworthy, editorial.\n"
+        "- Metaphor: use a clever visual metaphor related to the post content.\n"
+        "- Details: specify lighting, mood, and square composition.\n"
+        "- NO TEXT in the image.\n"
+        "Return valid JSON: {\"asset_brief\": \"string\"}"
+    )
+    user_prompt = f"Post content:\n\n{content_text}"
+
+    payload = await generate_json(
+        [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        session=session,
+    )
+
+    new_brief = payload.get("asset_brief", "")
+    if not new_brief:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to generate visual brief.")
+
+    # Update item
+    generation_payload["asset_brief"] = new_brief
+    research_data["generation_payload"] = generation_payload
+    item.research_data = research_data
+    
+    # Reset evaluations because the visual concept changed
+    await session.execute(
+        delete(ContentEvaluationResult)
+        .where(ContentEvaluationResult.content_plan_item_id == item.id)
+    )
+    
+    await session.commit()
+    
+    # Trigger new evaluation in background
+    import asyncio
+    async def _bg_eval():
+        from app.db.session import AsyncSessionLocal
+        async with AsyncSessionLocal() as bg_session:
+            try:
+                await evaluate_item_content(bg_session, item.id)
+            except Exception:
+                pass
+    
+    asyncio.create_task(_bg_eval())
+    
+    return {"asset_brief": new_brief}

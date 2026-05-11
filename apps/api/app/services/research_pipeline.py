@@ -256,43 +256,39 @@ async def _fetch_google_news_rss(query: str) -> list[dict[str, Any]]:
 
 def _build_research_queries(product: Product, theme_override: str | None = None) -> list[str]:
     queries: list[str] = []
-    if theme_override and theme_override.strip():
-        queries.append(f"{theme_override.strip()} AI автоматизация бизнес")
+    
+    # 1. Industry-Specific Deep Dive (Primary focus)
+    target_segments = product.audience_segments or ["малый бизнес", "эксперты", "маркетологи"]
+    for segment in target_segments:
+        segment_name = str(segment).strip()
+        queries.append(f"AI для {segment_name} кейсы автоматизация")
+        queries.append(f"как {segment_name} использует нейросети для работы")
+        queries.append(f"автоматизация рутины {segment_name} ИИ")
 
+    # 2. General Professional Groups
+    queries.extend([
+        "ИИ для помогающих практиков (астрологи, коучи, психологи) кейс",
+        "автоматизация локального сервисного бизнеса нейросети",
+        "нейросети для юридических и консалтинговых услуг примеры",
+        "AI агенты для обработки заявок в малом бизнесе кейс"
+    ])
+
+    if theme_override and theme_override.strip():
+        queries.append(f"{theme_override.strip()} прикладной кейс автоматизация")
+
+    # 3. Specific Pain Points from Product Profile
     base_terms = [product.name]
     base_terms.extend(str(value).strip() for value in product.content_pillars[:3] if str(value).strip())
-    base_terms.extend(str(value).strip() for value in product.pain_points[:3] if str(value).strip())
-
-    seen: set[str] = set()
-    for term in base_terms:
-        if not term:
-            continue
-        compact = term.strip()
-        if compact in seen:
-            continue
-        seen.add(compact)
-        queries.append(f"{compact} AI кейс автоматизация")
-        queries.append(f"{compact} Telegram CRM автоматизация")
-
-    queries.extend(
-        [
-            "малый бизнес AI автоматизация кейс",
-            "Telegram бот CRM заявки автоматизация",
-            "AI ассистент малый бизнес кейс",
-            "AI автоматизация контента малый бизнес",
-            "AI внедрение бизнес ошибки кейс",
-        ]
-    )
-
-    deduped: list[str] = []
+    
     seen_queries: set[str] = set()
+    deduped: list[str] = []
     for query in queries:
         normalized = query.lower().strip()
         if normalized in seen_queries:
             continue
         seen_queries.add(normalized)
         deduped.append(query)
-        if len(deduped) >= 10:
+        if len(deduped) >= 15:
             break
     return deduped
 
