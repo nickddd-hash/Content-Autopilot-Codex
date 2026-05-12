@@ -99,8 +99,22 @@ function formatGenerationMode(mode: string | null) {
   return labels[mode] || mode;
 }
 
-function normalizeEditorialText(value: string) {
+function stripMarkdown(value: string) {
   return value
+    .replace(/```[\s\S]*?```/g, (m) => m.replace(/`/g, "").trim())
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^>\s*/gm, "")
+    .replace(/^[-*_]{3,}\s*$/gm, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
+function normalizeEditorialText(value: string) {
+  return stripMarkdown(value)
     .replace(/[—–]/g, "-")
     .replace(/\u00A0/g, " ")
     .replace(/\r\n/g, "\n")

@@ -38,7 +38,7 @@ How to construct the post (Expert Narrative Architecture):
 5. THE STRATEGIC INSIGHT: End with a conclusion that shifts the reader's perspective. Why is this a competitive advantage? What is the long-term impact on the business model?
 6. FACT-DENSITY: Every sentence must contain a new fact, a specific action, or a logical step. Delete any sentence that serves as a generic transition.
 7. TARGET LENGTH: Aim for 1500-2500 characters. Use the space to provide deep value, detailed examples, and thorough explanations. A post must be a "finished piece of information" - a holistic fact.
-8. FORMATTING: Use bolding for key terms, lists for steps, and clear paragraph breaks to ensure readability of long-form content.
+8. FORMATTING: Plain text only. Do NOT use markdown syntax: no **, no *, no __, no #, no >, no backticks. Use only paragraph breaks and numbered or dash lists where needed. Bold and italic will not render in the final channel.
 """.strip()
 
 

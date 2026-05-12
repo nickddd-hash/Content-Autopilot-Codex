@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 
 _MOJIBAKE_MARKERS = (
     "\u00d0",
@@ -61,6 +63,29 @@ def repair_common_mojibake(value: str) -> str:
         current = best_candidate
 
     return current
+
+
+def strip_markdown(value: str) -> str:
+    text = value
+    # Code blocks (``` ... ```)
+    text = re.sub(r"```[\s\S]*?```", lambda m: m.group(0).strip("`").strip(), text)
+    # Inline code
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    # Bold/italic: ***, **, __
+    text = re.sub(r"\*{1,3}([^*\n]+)\*{1,3}", r"\1", text)
+    text = re.sub(r"_{2}([^_\n]+)_{2}", r"\1", text)
+    text = re.sub(r"_([^_\n]+)_", r"\1", text)
+    # Headings
+    text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
+    # Blockquotes
+    text = re.sub(r"^>\s*", "", text, flags=re.MULTILINE)
+    # Horizontal rules
+    text = re.sub(r"^[-*_]{3,}\s*$", "", text, flags=re.MULTILINE)
+    # Links [text](url) \u2192 text
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+    # Collapse 3+ blank lines to 2
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 def normalize_user_facing_text(value: str) -> str:

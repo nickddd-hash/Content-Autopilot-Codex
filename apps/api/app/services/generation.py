@@ -17,7 +17,7 @@ from app.schemas.job_run import StartGenerationResponse
 from app.services.generation_prompt import build_generation_messages
 from app.services.content_evaluation import evaluate_item_content
 from app.services.llm_client import LLMClientError, generate_json
-from app.services.text_normalization import normalize_user_facing_text
+from app.services.text_normalization import normalize_user_facing_text, strip_markdown
 
 TELEGRAM_CAPTION_SAFE_LIMIT = 900
 
@@ -183,7 +183,7 @@ def build_content_plan_item_detail(item: ContentPlanItem) -> dict[str, Any]:
         "created_at": item.created_at,
         "updated_at": item.updated_at,
         "generated_draft_title": normalize_user_facing_text(str(generation_payload.get("draft_title"))) if generation_payload.get("draft_title") else None,
-        "generated_draft_markdown": normalize_user_facing_text(str(generation_payload.get("draft_markdown"))) if generation_payload.get("draft_markdown") else None,
+        "generated_draft_markdown": normalize_user_facing_text(strip_markdown(str(generation_payload.get("draft_markdown")))) if generation_payload.get("draft_markdown") else None,
         "generated_summary": normalize_user_facing_text(str(generation_payload.get("summary"))) if generation_payload.get("summary") else None,
         "generated_hook": normalize_user_facing_text(str(generation_payload.get("hook"))) if generation_payload.get("hook") else None,
         "generated_cta": normalize_user_facing_text(str(generation_payload.get("cta"))) if generation_payload.get("cta") else None,
