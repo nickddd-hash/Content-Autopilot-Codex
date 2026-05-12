@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db_session
 from app.models import ContentPlan, ContentPlanItem, Product
+from app.models.evaluator import ContentEvaluationResult
 from app.schemas.content_plan import (
     PLAN_DIRECTION_KEYS,
     ArchivedContentItemRead,
@@ -60,9 +61,10 @@ async def _get_plan_or_404(session: AsyncSession, plan_id: UUID) -> ContentPlan:
 
 
 async def _get_item_or_404(session: AsyncSession, plan_id: UUID, item_id: UUID) -> ContentPlanItem:
-    statement = select(ContentPlanItem).where(
-        ContentPlanItem.id == item_id,
-        ContentPlanItem.plan_id == plan_id,
+    statement = (
+        select(ContentPlanItem)
+        .where(ContentPlanItem.id == item_id, ContentPlanItem.plan_id == plan_id)
+        .options(selectinload(ContentPlanItem.evaluation_results).selectinload(ContentEvaluationResult.evaluator))
     )
     item = await session.scalar(statement)
     if item is None:
