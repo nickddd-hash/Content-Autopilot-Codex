@@ -118,25 +118,9 @@ def _shorten_text_to_limit(text: str, limit: int) -> str:
 
 
 def _enforce_publishable_telegram_payload(item: ContentPlanItem, generation_payload: dict[str, Any]) -> dict[str, Any]:
-    if not _should_enforce_telegram_caption_limit(item):
-        return generation_payload
-
-    payload = dict(generation_payload)
-    draft_markdown = str(payload.get("draft_markdown") or "").strip()
-    if not draft_markdown:
-        return payload
-
-    shortened_markdown = _shorten_text_to_limit(draft_markdown, TELEGRAM_CAPTION_SAFE_LIMIT)
-    if shortened_markdown == draft_markdown:
-        return payload
-
-    payload["draft_markdown"] = shortened_markdown
-
-    review_notes = payload.get("review_notes")
-    normalized_notes = [str(note) for note in review_notes if note] if isinstance(review_notes, list) else []
-    normalized_notes.append("Текст автоматически ужат под один Telegram-пост с иллюстрацией.")
-    payload["review_notes"] = normalized_notes
-    return payload
+    # We disable automatic shortening to allow for maximum depth and holistic facts.
+    # Readability and impact will be assessed by AI evaluators instead of hard limits.
+    return generation_payload
 
 
 def _build_fallback_generation_payload(item: ContentPlanItem, product: Product | None) -> dict[str, Any]:
