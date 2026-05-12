@@ -40,6 +40,7 @@ class ContentPlan(UUIDPrimaryKeyMixin, Base):
         cascade="all, delete-orphan",
     )
     topic_memory_entries: Mapped[list["TopicMemory"]] = relationship(back_populates="content_plan")
+    plan_audits: Mapped[list["ContentPlanAudit"]] = relationship(back_populates="plan", cascade="all, delete-orphan")
 
 
 class ContentPlanItem(UUIDPrimaryKeyMixin, TimestampMixin, NamedStatusMixin, Base):
@@ -71,6 +72,9 @@ class ContentPlanItem(UUIDPrimaryKeyMixin, TimestampMixin, NamedStatusMixin, Bas
     plan: Mapped["ContentPlan"] = relationship(back_populates="items")
     costs: Mapped[list["ContentCost"]] = relationship(back_populates="content_plan_item")
     job_runs: Mapped[list["JobRun"]] = relationship(back_populates="content_plan_item")
+    evaluation_results: Mapped[list["ContentEvaluationResult"]] = relationship(
+        back_populates="item", cascade="all, delete-orphan"
+    )
 
     @property
     def generated_draft_title(self) -> str | None:

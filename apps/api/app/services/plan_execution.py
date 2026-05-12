@@ -17,6 +17,8 @@ from app.services.plan_generation import generate_plan_items_for_plan
 from app.services.research_pipeline import sync_topic_memory_status_for_item
 from app.services.telegram_publisher import publish_item_to_telegram_channels
 
+_ACTIVE_PLAN_PIPELINE_TASKS: dict[UUID, asyncio.Task] = {}
+
 
 def _normalize_publish_days(raw_days: list[int] | None) -> set[int]:
     days = [int(day) for day in (raw_days or [])]
@@ -196,6 +198,15 @@ async def _run_plan_pipeline_job(
                 "result": "completed",
             }
             await session.commit()
+    except asyncio.CancelledError:
+        async with AsyncSessionLocal() as session:
+            job = await session.get(JobRun, job_id)
+            if job is not None and job.status in ("pending", "running"):
+                job.status = "cancelled"
+                job.finished_at = datetime.now(timezone.utc)
+                job.error_message = "Stopped manually by operator request"
+                job.meta_json = {**(job.meta_json or {}), "result": "cancelled"}
+                await session.commit()
     except Exception as exc:
         async with AsyncSessionLocal() as session:
             job = await session.get(JobRun, job_id)
@@ -212,6 +223,32 @@ async def _run_plan_pipeline_job(
             await session.commit()
 
 
+async def cancel_plan_pipeline_job(session: AsyncSession, plan_id: UUID) -> JobRun:
+    await _get_plan_with_product(session, plan_id)
+    statement = (
+        select(JobRun)
+        .where(JobRun.content_plan_id == plan_id)
+        .where(JobRun.status.in_(("pending", "running")))
+        .order_by(JobRun.created_at.desc())
+        .limit(1)
+    )
+    job = await session.scalar(statement)
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Active plan generation job not found.")
+
+    task = _ACTIVE_PLAN_PIPELINE_TASKS.get(job.id)
+    if task is not None and not task.done():
+        task.cancel()
+
+    job.status = "cancelled"
+    job.finished_at = datetime.now(timezone.utc)
+    job.error_message = "Stopped manually by operator request"
+    job.meta_json = {**(job.meta_json or {}), "result": "cancelled"}
+    await session.commit()
+    await session.refresh(job)
+    return job
+
+
 async def start_plan_pipeline_job(
     session: AsyncSession,
     plan_id: UUID,
@@ -221,6 +258,14 @@ async def start_plan_pipeline_job(
     num_items_override: int | None = None,
 ) -> JobRun:
     plan = await _get_plan_with_product(session, plan_id)
+    active_job = await session.scalar(
+        select(JobRun)
+        .where(JobRun.content_plan_id == plan.id)
+        .where(JobRun.status.in_(("pending", "running")))
+        .limit(1)
+    )
+    if active_job is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Plan generation is already running.")
     now = datetime.now(timezone.utc)
     job_type = "plan_generation_pipeline" if generate_items else "plan_material_build"
     job = JobRun(
@@ -240,7 +285,7 @@ async def start_plan_pipeline_job(
     await session.commit()
     await session.refresh(job)
 
-    asyncio.create_task(
+    task = asyncio.create_task(
         _run_plan_pipeline_job(
             job_id=job.id,
             plan_id=plan.id,
@@ -249,6 +294,8 @@ async def start_plan_pipeline_job(
             num_items_override=num_items_override,
         )
     )
+    _ACTIVE_PLAN_PIPELINE_TASKS[job.id] = task
+    task.add_done_callback(lambda t: _ACTIVE_PLAN_PIPELINE_TASKS.pop(job.id, None))
     return job
 
 

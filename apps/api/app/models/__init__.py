@@ -6,6 +6,7 @@ from app.models.content_plan import ContentPlan, ContentPlanItem
 from app.models.job_run import ContentCost, JobRun
 from app.models.product import Product, ProductContentSettings
 from app.models.product_channel import ProductChannel
+from app.models.evaluator import ContentEvaluationResult, ContentEvaluator, ContentPlanAudit
 from app.models.research import PlanResearchLink, ResearchCandidate, ResearchSource, TopicMemory
 from app.models.social_account import SocialAccount
 from app.models.system import SystemSetting
@@ -14,7 +15,10 @@ __all__ = [
     "BlogPost",
     "BrandProfile",
     "ContentCost",
+    "ContentEvaluationResult",
+    "ContentEvaluator",
     "ContentPlan",
+    "ContentPlanAudit",
     "ContentPlanItem",
     "JobRun",
     "Product",

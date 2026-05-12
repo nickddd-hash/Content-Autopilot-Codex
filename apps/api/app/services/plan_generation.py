@@ -381,7 +381,25 @@ STRATEGY:
 {BASE_STRATEGY_RULES}
 {BASE_ANTI_RULES}
 {PAIN_DIVERSITY_AND_RESEARCH_RULES}
-...""".strip()
+
+Default geography and context: Russia and CIS.
+Use examples, daily scenarios, platforms and constraints that make sense for readers in Russia and CIS.
+Western/global services may be mentioned when discussing global trends, but do not present them as default everyday services.
+
+Return valid JSON with this exact shape:
+{{
+  "items": [
+    {{
+      "title": "string",
+      "angle": "string",
+      "target_keywords": ["string"],
+      "article_type": "string (e.g. educational, checklist, comparison, news, opinion, critical)",
+      "cta_type": "string (e.g. soft, hard, none)",
+      "content_direction": "string (one of practical, educational, news, opinion, critical)",
+      "research_candidate_ids": ["uuid string or empty list if no candidate used"]
+    }}
+  ]
+}}""".strip()
 
     user_prompt = f"""
 Product name: {product.name}
@@ -702,7 +720,12 @@ async def generate_rewrite_items_from_ingested(
             article_type="rewrite",
             cta_type="soft",
             status="planned",
-            research_data={"ingested_content_id": str(ingested.id), "raw": ingested.raw_data},
+            research_data={
+                "ingested_content_id": str(ingested.id),
+                "raw": ingested.raw_data,
+                "channel_targets": list(plan.product.primary_channels or []),
+                "include_illustration": True,
+            },
         )
         session.add(item)
         new_items.append(item)
