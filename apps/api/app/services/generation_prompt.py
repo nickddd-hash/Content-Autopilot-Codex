@@ -10,7 +10,6 @@ BASE_STRATEGY_RULES = """
 Core product strategy:
 - This content is for entrepreneurs, experts, marketers and small business owners in Russia/CIS who heard about AI but do not clearly understand how it applies to their business.
 - The job of the post is to translate AI into recognizable business situations, pains, manual processes and practical opportunities.
-- The content should move the reader from abstract interest toward a concrete next step: a free AI business audit/helper that asks 7 short questions and returns a diagnosis, 3 automation priorities, a quick win, suitable tools and an approximate ROI.
 - The writer voice should feel like a practical translator between AI and business, not like a hype commentator or generic AI educator.
 """.strip()
 
@@ -137,6 +136,24 @@ def _build_direction_instruction(direction: str | None) -> str:
     return direction_map[normalized]
 
 
+def _build_cta_instruction(article_type: str | None, content_direction: str | None) -> str:
+    is_practical = (article_type or "").strip().lower() in ("practical", "checklist")
+    is_practical_direction = (content_direction or "").strip().lower() == "practical"
+    if is_practical and is_practical_direction:
+        return (
+            "CTA rule: This is a practical business automation post. "
+            "You MAY end with a single soft CTA if it fits naturally — point to @BusinessAdviserNew_bot "
+            "where readers can quickly understand what to automate in their business. "
+            "Only add the CTA if it flows naturally from the post content. "
+            "Do not add a CTA if the post is about a general skill, mindset, or non-business topic."
+        )
+    return (
+        "CTA rule: Do NOT add a CTA to this post. "
+        "End on the content itself — the takeaway, insight, or practical conclusion. "
+        "No call to action, no bot links, no 'if you want to know more' phrases."
+    )
+
+
 def build_generation_messages(
     product: Product,
     brand_profile: BrandProfile | None,
@@ -189,6 +206,7 @@ def build_generation_messages(
         is_longread_capable=is_longread_capable
     )
     direction_instruction = _build_direction_instruction(content_direction)
+    cta_instruction = _build_cta_instruction(item.article_type, content_direction)
 
     system_prompt = f"""
 You are a senior content strategist and writer for a personal content autopilot.
@@ -204,6 +222,7 @@ Avoid generic AI filler, vague motivation, repetitive advice, bloated article st
 
 {channel_instruction}
 {direction_instruction}
+{cta_instruction}
 
 Visual Concept Guidelines (for asset_brief):
 - Avoid generic stock-photo descriptions.
@@ -311,7 +330,6 @@ Requirements:
 - The writing should feel like a real expert draft, not synthetic filler.
 - Keep the voice calm, clear, intelligent, credible and easy to read.
 - Prefer one compact Telegram-ready post over a long article.
-- Use a strong hook and a soft CTA unless the brief clearly needs a different CTA.
 - Make repurposing outputs materially useful, not placeholders.
 - Avoid long dashes in every field of the response.
 - If manual brief is present, treat it as the main source of intent and build the post around it.
@@ -320,7 +338,6 @@ Requirements:
 - Make the reader recognize themselves in the situation whenever possible.
 - Show what is actually broken: time loss, lead loss, routine, chaos, weak handoffs, poor follow-up or missing system.
 - If you mention AI, bots or automation, connect them to a concrete business process, not to abstract tool enthusiasm.
-- Prefer soft CTAs that lead to diagnosis, audit, consultation or implementation help, not to self-assembly.
 - Do not suggest that a random prompt alone solves the business problem if the real issue is process, data, CRM, logic or follow-up.
 - Do not start the post from the tool itself. Start from the recognizable business situation and use the tool, release, case or innovation only as the practical angle.
 """.strip()
