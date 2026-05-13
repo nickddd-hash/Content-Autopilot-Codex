@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any
 
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.models.system import SystemSetting
 
 OPENAI_BASE_URL = "https://api.openai.com/v1"
-OPENAI_MODEL = "gpt-4o-mini"
+OPENAI_MODEL = "gpt-5.4-mini"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
@@ -48,7 +48,7 @@ async def _resolve_runtime_config(session: AsyncSession | None) -> tuple[str, st
             shared_model
             or (await _read_system_setting(session, "OPENROUTER_MODEL"))
             or os.getenv("OPENROUTER_MODEL")
-            or "google/gemini-flash-1.5"
+            or "google/gemini-2.5-flash"
         )
 
         if not api_key.strip():
@@ -56,23 +56,35 @@ async def _resolve_runtime_config(session: AsyncSession | None) -> tuple[str, st
 
         return provider, api_key.strip(), base_url.rstrip("/"), model.strip()
 
-    if provider == "google":
-        api_key = (await _read_system_setting(session, "GOOGLE_API_KEY")) or settings.google_api_key or os.getenv("GOOGLE_API_KEY") or ""
-        base_url = (await _read_system_setting(session, "GOOGLE_BASE_URL")) or os.getenv("GOOGLE_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta"
-        model = shared_model or (await _read_system_setting(session, "GOOGLE_MODEL")) or os.getenv("GOOGLE_MODEL") or "gemini-2.0-flash-exp"
-
-        if not api_key.strip():
-            raise LLMClientError("GOOGLE_API_KEY is not configured.")
-
-        return provider, api_key.strip(), base_url.rstrip("/"), model.strip()
-
-    if provider == "agent":
-        return "agent", "", "http://localhost:8001", "agent-model"
-
     raise LLMClientError(f"Unsupported LLM provider: {provider}")
 
 
 def _extract_text_from_response(payload: dict[str, Any]) -> str:
+    output = payload.get("output")
+    if isinstance(output, list):
+        collected: list[str] = []
+        for item in output:
+            if not isinstance(item, dict):
+                continue
+            content = item.get("content")
+            if not isinstance(content, list):
+                continue
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "output_text":
+                    text = block.get("text")
+                    if isinstance(text, str):
+                        collected.append(text)
+        if collected:
+            return "\n".join(collected)
+
+    output_text = payload.get("output_text")
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text
+
+    raise LLMClientError("LLM returned no text output.")
+
+
+def _extract_openrouter_text(payload: dict[str, Any]) -> str:
     choices = payload.get("choices")
     if isinstance(choices, list) and choices:
         first_choice = choices[0]
@@ -83,22 +95,7 @@ def _extract_text_from_response(payload: dict[str, Any]) -> str:
                 if isinstance(content, str) and content.strip():
                     return content
 
-    raise LLMClientError("LLM returned no text output.")
-
-
-def _extract_google_text(payload: dict[str, Any]) -> str:
-    candidates = payload.get("candidates")
-    if isinstance(candidates, list) and candidates:
-        first_candidate = candidates[0]
-        content = first_candidate.get("content")
-        if isinstance(content, dict):
-            parts = content.get("parts")
-            if isinstance(parts, list) and parts:
-                text = parts[0].get("text")
-                if isinstance(text, str) and text.strip():
-                    return text
-
-    raise LLMClientError("Google Gemini returned no text output.")
+    raise LLMClientError("OpenRouter returned no text output.")
 
 
 async def generate_json(messages: list[dict[str, str]], session: AsyncSession | None = None) -> dict[str, Any]:
@@ -121,76 +118,34 @@ async def generate_json(messages: list[dict[str, str]], session: AsyncSession | 
                         "response_format": {"type": "json_object"},
                     },
                 )
-            elif provider == "google":
-                # Convert OpenAI messages to Gemini contents
-                gemini_contents = []
-                for msg in messages:
-                    role = "user" if msg["role"] == "user" else "model"
-                    gemini_contents.append({
-                        "role": role,
-                        "parts": [{"text": msg["content"]}]
-                    })
-                
-                response = await client.post(
-                    f"{base_url}/models/{model}:generateContent?key={api_key}",
-                    headers={"Content-Type": "application/json"},
-                    json={
-                        "contents": gemini_contents,
-                        "generationConfig": {
-                            "response_mime_type": "application/json",
-                        }
-                    },
-                )
-            elif provider == "agent":
-                response = await client.post(
-                    f"{base_url}/generate-text",
-                    headers={"Content-Type": "application/json"},
-                    json={
-                        "model": model,
-                        "messages": messages,
-                    },
-                )
             else:
                 response = await client.post(
-                    f"{base_url}/chat/completions",
+                    f"{base_url}/responses",
                     headers={
                         "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
                     },
                     json={
                         "model": model,
-                        "messages": messages,
-                        "response_format": {"type": "json_object"},
+                        "input": messages,
+                        "text": {"format": {"type": "json_object"}},
                     },
                 )
             response.raise_for_status()
         except httpx.HTTPError as error:
-            # Try to extract error detail from Gemini
-            detail = ""
-            if error.response:
-                try:
-                    detail = f" | Detail: {error.response.text}"
-                except:
-                    pass
-            raise LLMClientError(f"LLM request failed: {error}{detail}") from error
+            raise LLMClientError(f"LLM request failed: {error}") from error
 
     payload = response.json()
-    if provider == "google":
-        text = _extract_google_text(payload)
-    else:
-        text = _extract_text_from_response(payload)
-    
+    text = _extract_openrouter_text(payload) if provider == "openrouter" else _extract_text_from_response(payload)
+    text = _strip_code_fences(text)
     try:
-        # Attempt standard JSON parse
         return json.loads(text)
-    except json.JSONDecodeError:
-        # If it fails, try to extract the JSON block from conversational filler
-        try:
-            start_index = text.find('{')
-            end_index = text.rfind('}')
-            if start_index != -1 and end_index != -1:
-                json_str = text[start_index : end_index + 1]
-                return json.loads(json_str)
-        except Exception:
-            pass
-        raise LLMClientError(f"LLM returned invalid JSON: {text[:200]}") from None
+    except json.JSONDecodeError as error:
+        raise LLMClientError("LLM returned invalid JSON.") from error
+
+
+def _strip_code_fences(text: str) -> str:
+    text = text.strip()
+    text = re.sub(r"^```(?:json)?\s*\n?", "", text)
+    text = re.sub(r"\n?```\s*$", "", text)
+    return text.strip()
