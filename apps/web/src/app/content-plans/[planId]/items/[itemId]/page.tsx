@@ -47,13 +47,16 @@ type JobRunResponse = {
   item_status: string;
 };
 
-function buildManualBriefFromDraft(draftTitle: string, draftMarkdown: string) {
+function buildManualBriefFromDraft(draftTitle: string, draftMarkdown: string, regenNote?: string) {
   const sections: string[] = [];
   if (draftTitle) {
     sections.push(`Current working title, can be regenerated: ${draftTitle}`);
   }
   if (draftMarkdown) {
     sections.push(`Current draft or brief:\n${draftMarkdown}`);
+  }
+  if (regenNote) {
+    sections.push(`Author note for this regeneration (follow strictly):\n${regenNote}`);
   }
   return sections.join("\n\n").trim();
 }
@@ -172,6 +175,7 @@ async function regenerateDraftAction(formData: FormData) {
   const path = `/content-plans/${planId}/items/${itemId}`;
   const draftTitle = normalizeEditorialText(String(formData.get("draftTitle") || ""));
   const draftMarkdown = normalizeEditorialText(String(formData.get("draftMarkdown") || ""));
+  const regenNote = String(formData.get("regenNote") || "").trim();
 
   const current = await fetchJson<ContentPlanItemDetail | null>(`/content-plans/${planId}/items/${itemId}`, null);
   if (!current) {
@@ -185,7 +189,8 @@ async function regenerateDraftAction(formData: FormData) {
       ? { ...(researchData.generation_payload as Record<string, unknown>) }
       : {};
 
-  researchData.manual_brief = buildManualBriefFromDraft(draftTitle, draftMarkdown);
+  researchData.manual_brief = buildManualBriefFromDraft(draftTitle, draftMarkdown, regenNote);
+  researchData.regen_note = regenNote;
   researchData.generation_payload = {
     ...currentPayload,
     draft_title: draftTitle,
@@ -266,6 +271,7 @@ async function saveDraftAction(formData: FormData) {
   const path = `/content-plans/${planId}/items/${itemId}`;
   const draftTitle = normalizeEditorialText(String(formData.get("draftTitle") || ""));
   const draftMarkdown = normalizeEditorialText(String(formData.get("draftMarkdown") || ""));
+  const regenNote = String(formData.get("regenNote") || "").trim();
 
   const current = await fetchJson<ContentPlanItemDetail | null>(`/content-plans/${planId}/items/${itemId}`, null);
   if (!current) {
@@ -279,6 +285,7 @@ async function saveDraftAction(formData: FormData) {
       ? { ...(researchData.generation_payload as Record<string, unknown>) }
       : {};
 
+  researchData.regen_note = regenNote;
   researchData.generation_payload = {
     ...currentPayload,
     draft_title: draftTitle,
@@ -409,6 +416,7 @@ export default async function ContentPlanItemPage({
     : null;
   const hasMasterDraft = Boolean(item.generated_draft_markdown);
   const isFallbackDraft = item.generation_mode === "fallback_generated";
+  const savedRegenNote = typeof item.research_data?.regen_note === "string" ? item.research_data.regen_note : "";
   const canGenerate = item.status === "planned" || item.status === "draft" || item.status === "failed";
 
   return (
@@ -704,6 +712,17 @@ export default async function ContentPlanItemPage({
                   Длинные тире при сохранении автоматически заменяются на короткие, чтобы текст выглядел живее и менее
                   шаблонно.
                 </p>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Комментарий для перегенерации</label>
+                  <textarea
+                    name="regenNote"
+                    className="form-input"
+                    rows={3}
+                    defaultValue={savedRegenNote}
+                    placeholder="Что изменить в следующей версии? Например: сделать короче, добавить конкретный пример, убрать CTA..."
+                    style={{ resize: "vertical" }}
+                  />
+                </div>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", flexWrap: "wrap" }}>
                   <button type="submit" formAction={regenerateDraftAction} className="btn">
                     Перегенерировать текст
