@@ -104,10 +104,17 @@ def _build_direction_instruction(direction: str | None) -> str:
     direction_map = {
         "practical": (
             "Content direction: practical.\n"
-            "- Focus on real use cases, applied value, simple steps and concrete outcomes.\n"
-            "- Give specific examples, concrete scenarios, typical tasks, before/after effects and clear practical details.\n"
+            "- Use this post structure: (1) Recognizable situation — a specific moment the reader has lived through; "
+            "(2) The hidden cost — what this actually breaks or wastes, in concrete terms; "
+            "(3) How AI solves it — describe the exact mechanism, not 'it automates'; "
+            "(4) What changes — before/after, in numbers or felt outcomes.\n"
+            "- The situation can be a business task OR a personal one. Entrepreneurs blur the line between work and life. "
+            "Personal examples (inbox, scheduling, research, weekly routines) land just as well as business ones — "
+            "and often create faster recognition.\n"
+            "- Start from the situation, not from the tool. The reader should think 'that's me' before they think 'that's AI'.\n"
+            "- Use specific details: a time of day, a role, a number, a recurring moment. Vague situations produce no recognition.\n"
             "- Do not stay at the level of abstract advice. Show what exactly happens, for whom, in which situation and with what result.\n"
-            "- If you mention automation or bots, describe concrete business or work situations rather than generic tool talk.\n"
+            "- If you mention automation or bots, name the concrete process they handle, not just the category.\n"
         ),
         "educational": (
             "Content direction: educational.\n"
