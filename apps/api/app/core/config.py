@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     google_api_key: str = ""
     telegram_api_id: int | None = None
     telegram_api_hash: str = ""
+    telegram_phone: str = ""
     telegram_session_dir: str = "/var/lib/athena-content/sessions"
     vk_client_id: str = ""
     vk_client_secret: str = ""
