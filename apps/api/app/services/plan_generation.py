@@ -571,7 +571,7 @@ async def generate_plan_items_for_plan(
         research_data = {
             "content_direction": direction,
             "channel_targets": list(plan.product.primary_channels or []),
-            "include_illustration": True,
+            "include_illustration": False,
         }
         if primary_candidate is not None:
             research_data.update(
@@ -646,7 +646,7 @@ async def generate_plan_items_for_plan(
                 research_data={
                     "content_direction": direction,
                     "channel_targets": list(plan.product.primary_channels or []),
-                    "include_illustration": True,
+                    "include_illustration": False,
                 },
             )
             session.add(item)
@@ -724,7 +724,7 @@ async def generate_rewrite_items_from_ingested(
                 "ingested_content_id": str(ingested.id),
                 "raw": ingested.raw_data,
                 "channel_targets": list(plan.product.primary_channels or []),
-                "include_illustration": True,
+                "include_illustration": False,
             },
         )
         session.add(item)
