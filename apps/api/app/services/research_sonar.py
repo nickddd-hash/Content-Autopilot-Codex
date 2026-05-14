@@ -7,6 +7,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.llm_client import LLMClientError, _read_system_setting
 
+
+async def _get_openrouter_key() -> str:
+    """Read OpenRouter key — env first, then fresh DB session to avoid greenlet issues."""
+    env_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    if env_key:
+        return env_key
+
+    try:
+        from app.db.session import AsyncSessionLocal
+        async with AsyncSessionLocal() as fresh_session:
+            key = await _read_system_setting(fresh_session, "OPENROUTER_API_KEY") or ""
+            if key.strip():
+                return key.strip()
+    except Exception:
+        pass
+
+    raise LLMClientError("OPENROUTER_API_KEY is not configured.")
+
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 SONAR_MODEL = "perplexity/sonar"
 
@@ -35,21 +53,14 @@ _DIRECTION_QUERIES: dict[str, str] = {
 }
 
 
-async def _get_openrouter_key(session: AsyncSession | None) -> str:
-    key = (await _read_system_setting(session, "OPENROUTER_API_KEY")) or os.getenv("OPENROUTER_API_KEY") or ""
-    if not key.strip():
-        raise LLMClientError("OPENROUTER_API_KEY is not configured.")
-    return key.strip()
-
-
 def _build_query(topic: str, angle: str | None, direction: str) -> str:
     template = _DIRECTION_QUERIES.get(direction, _DIRECTION_QUERIES["practical"])
     angle_part = f", угол: {angle}" if angle else ""
     return template.format(topic=topic, angle=angle_part)
 
 
-async def _call_sonar(query: str, session: AsyncSession | None) -> str:
-    api_key = await _get_openrouter_key(session)
+async def _call_sonar(query: str) -> str:
+    api_key = await _get_openrouter_key()
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
@@ -84,19 +95,19 @@ async def run_sonar_research(
     topic: str,
     angle: str | None,
     direction: str,
-    session: AsyncSession | None,
+    session: AsyncSession | None = None,
 ) -> str:
     """Initial mandatory research call. Returns empty string on failure — non-fatal."""
     try:
         query = _build_query(topic, angle, direction)
-        return await _call_sonar(query, session)
+        return await _call_sonar(query)
     except LLMClientError:
         return ""
 
 
-async def run_sonar_followup(followup_query: str, session: AsyncSession | None) -> str:
+async def run_sonar_followup(followup_query: str, session: AsyncSession | None = None) -> str:
     """Model-requested follow-up research call. Returns empty string on failure."""
     try:
-        return await _call_sonar(followup_query, session)
+        return await _call_sonar(followup_query)
     except LLMClientError:
         return ""
