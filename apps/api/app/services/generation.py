@@ -17,6 +17,7 @@ from app.schemas.job_run import StartGenerationResponse
 from app.services.generation_prompt import build_generation_messages
 from app.services.content_evaluation import evaluate_item_content
 from app.services.llm_client import LLMClientError, generate_json
+from app.services.research_sonar import run_sonar_followup, run_sonar_research
 from app.services.text_normalization import normalize_user_facing_text, strip_markdown
 
 TELEGRAM_CAPTION_SAFE_LIMIT = 900
@@ -232,9 +233,31 @@ async def start_manual_generation(
     session.add(job_run)
     await session.flush()
 
+    content_direction = ""
+    if isinstance(item.research_data, dict):
+        raw_direction = item.research_data.get("content_direction")
+        if isinstance(raw_direction, str):
+            content_direction = raw_direction.strip().lower()
+
+    research_context = await run_sonar_research(
+        topic=item.title,
+        angle=item.angle,
+        direction=content_direction,
+        session=session,
+    )
+
     try:
-        messages = build_generation_messages(plan.product, brand_profile, plan, item)
+        messages = build_generation_messages(plan.product, brand_profile, plan, item, research_context=research_context)
         generation_payload = await generate_json(messages, session=session)
+
+        followup_query = generation_payload.get("research_followup")
+        if isinstance(followup_query, str) and followup_query.strip():
+            additional = await run_sonar_followup(followup_query.strip(), session=session)
+            if additional:
+                combined_context = f"{research_context}\n\n---\n\nДополнительные данные:\n{additional}"
+                messages = build_generation_messages(plan.product, brand_profile, plan, item, research_context=combined_context)
+                generation_payload = await generate_json(messages, session=session)
+
         result_mode = "llm_generated"
     except LLMClientError as exc:
         generation_payload = _build_fallback_generation_payload(item, plan.product)

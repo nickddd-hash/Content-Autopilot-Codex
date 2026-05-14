@@ -166,6 +166,7 @@ def build_generation_messages(
     brand_profile: BrandProfile | None,
     plan: ContentPlan,
     item: ContentPlanItem,
+    research_context: str = "",
 ) -> list[dict[str, str]]:
     brand_name = brand_profile.brand_name if brand_profile and brand_profile.brand_name else product.name
     brand_summary = (
@@ -252,8 +253,11 @@ Return valid JSON with this shape:
     "carousel": ["string", "string"],
     "reel_script": "string"
   }},
-  "review_notes": ["string", "string"]
+  "review_notes": ["string", "string"],
+  "research_followup": "string or null"
 }}
+
+research_followup: if the provided research context is missing or too thin to write a concrete, fact-grounded post, put ONE specific web search query here to get better data. If the research is sufficient, set it to null.
 """.strip()
 
 
@@ -331,6 +335,9 @@ Manual author brief:
 
 Requested content direction:
 {content_direction or "not specified"}
+
+Research context (live web search results — use as factual base, cite specific cases and numbers):
+{research_context.strip() if research_context.strip() else "not available"}
 
 Requirements:
 - Produce a practical, useful, high-signal first draft.
