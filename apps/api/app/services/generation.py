@@ -385,5 +385,6 @@ async def regenerate_item_visual_brief(
                 pass
     
     asyncio.create_task(_bg_eval())
-    
-    return {"asset_brief": new_brief}
+
+    await session.refresh(item)
+    return item
