@@ -17,6 +17,7 @@ const MANAGED_SETTINGS: Array<{ key: string; description?: string }> = [
   { key: "OPENAI_API_KEY", description: "Ключ OpenAI." },
   { key: "OPENROUTER_API_KEY", description: "Ключ OpenRouter." },
   { key: "KIE_AI_API_KEY", description: "Ключ KIE." },
+  { key: "HUBRIS_API_KEY", description: "Ключ Hubris (hubris.pw)." },
   { key: "TEXT_MODEL", description: "Общая текстовая модель." },
   { key: "IMAGE_MODEL", description: "Общая модель изображений." },
   { key: "VIDEO_MODEL", description: "Общая видеомодель." },
@@ -25,6 +26,7 @@ const MANAGED_SETTINGS: Array<{ key: string; description?: string }> = [
 const PROVIDER_OPTIONS = [
   { value: "openai", label: "OpenAI" },
   { value: "openrouter", label: "OpenRouter" },
+  { value: "hubris", label: "Hubris" },
   { value: "kie", label: "KIE" },
 ];
 
@@ -34,6 +36,12 @@ const TEXT_MODEL_OPTIONS = [
   { value: "google/gemini-2.5-flash", label: "OpenRouter · Gemini 2.5 Flash" },
   { value: "google/gemini-2.5-flash-lite", label: "OpenRouter · Gemini 2.5 Flash Lite" },
   { value: "gpt-5-4", label: "KIE · GPT-5.4" },
+  { value: "google/gemini-2.5-flash", label: "Hubris · Gemini 2.5 Flash" },
+  { value: "google/gemini-2.5-pro", label: "Hubris · Gemini 2.5 Pro" },
+  { value: "anthropic/claude-sonnet-4.6", label: "Hubris · Claude Sonnet 4.6" },
+  { value: "anthropic/claude-haiku-4.5", label: "Hubris · Claude Haiku 4.5" },
+  { value: "openai/gpt-4o", label: "Hubris · GPT-4o" },
+  { value: "openai/gpt-4o-mini", label: "Hubris · GPT-4o Mini" },
 ];
 
 const IMAGE_MODEL_OPTIONS = [
@@ -147,6 +155,21 @@ export default async function SettingsPage() {
                 className="form-input"
                 defaultValue=""
                 placeholder={getSecretPlaceholder(getValue("KIE_AI_API_KEY"))}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label form-label-inline" htmlFor="HUBRIS_API_KEY">
+                Hubris key
+                <HelpHint text="Ключ hubris.pw — OpenAI-совместимый агрегатор, дешевле за счёт рублёвого тарифа." />
+              </label>
+              <input
+                id="HUBRIS_API_KEY"
+                name="HUBRIS_API_KEY"
+                type="password"
+                className="form-input"
+                defaultValue=""
+                placeholder={getSecretPlaceholder(getValue("HUBRIS_API_KEY"))}
               />
             </div>
           </div>

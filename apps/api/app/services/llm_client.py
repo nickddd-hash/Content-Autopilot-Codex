@@ -14,6 +14,7 @@ from app.models.system import SystemSetting
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 OPENAI_MODEL = "gpt-5.4-mini"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+HUBRIS_BASE_URL = "https://api.hubris.pw/v1"
 
 
 class LLMClientError(Exception):
@@ -53,6 +54,21 @@ async def _resolve_runtime_config(session: AsyncSession | None) -> tuple[str, st
 
         if not api_key.strip():
             raise LLMClientError("OPENROUTER_API_KEY is not configured.")
+
+        return provider, api_key.strip(), base_url.rstrip("/"), model.strip()
+
+    if provider == "hubris":
+        api_key = (await _read_system_setting(session, "HUBRIS_API_KEY")) or os.getenv("HUBRIS_API_KEY") or ""
+        base_url = HUBRIS_BASE_URL
+        model = (
+            shared_model
+            or (await _read_system_setting(session, "HUBRIS_MODEL"))
+            or os.getenv("HUBRIS_MODEL")
+            or "google/gemini-2.5-flash"
+        )
+
+        if not api_key.strip():
+            raise LLMClientError("HUBRIS_API_KEY is not configured.")
 
         return provider, api_key.strip(), base_url.rstrip("/"), model.strip()
 
@@ -103,15 +119,17 @@ async def generate_json(messages: list[dict[str, str]], session: AsyncSession | 
 
     async with httpx.AsyncClient(timeout=90.0) as client:
         try:
-            if provider == "openrouter":
+            if provider in ("openrouter", "hubris"):
+                headers: dict[str, str] = {
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                }
+                if provider == "openrouter":
+                    headers["HTTP-Referer"] = "https://content.flowsmart.ru"
+                    headers["X-OpenRouter-Title"] = "Athena Content"
                 response = await client.post(
                     f"{base_url}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://content.flowsmart.ru",
-                        "X-OpenRouter-Title": "Athena Content",
-                    },
+                    headers=headers,
                     json={
                         "model": model,
                         "messages": messages,
@@ -136,7 +154,7 @@ async def generate_json(messages: list[dict[str, str]], session: AsyncSession | 
             raise LLMClientError(f"LLM request failed: {error}") from error
 
     payload = response.json()
-    text = _extract_openrouter_text(payload) if provider == "openrouter" else _extract_text_from_response(payload)
+    text = _extract_openrouter_text(payload) if provider in ("openrouter", "hubris") else _extract_text_from_response(payload)
     text = _strip_code_fences(text)
     try:
         return json.loads(text)
