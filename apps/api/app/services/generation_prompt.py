@@ -233,12 +233,38 @@ Avoid generic AI filler, vague motivation, repetitive advice, bloated article st
 {cta_instruction}
 
 Visual Concept Guidelines (for asset_brief):
-- Avoid generic stock-photo descriptions.
-- Use visual metaphors that reflect the post's core message.
-- MANDATORY: Include a "human factor" or something "alive" in the scene (a person, hands, a visible expert, a founder, a student, etc.). 
-- Describe composition, lighting (e.g., "warm morning light"), and mood.
-- Style should be editorial, clean, and modern.
-- DO NOT use text in the image.
+Choose ONE visual style that best fits the post's content direction and tone. Do not default to the same style every time.
+
+STYLE PALETTE — pick the most fitting one:
+- Photorealistic scene: a specific real-world moment caught mid-action (person at a desk, a phone screen, a meeting, a delivery)
+- Flat illustration: clean vector-style image, bold shapes, limited palette, metaphor made simple
+- Abstract metaphor: geometry, light, texture, flow — no literal objects, mood over message
+- Close-up detail: extreme crop of hands, a keyboard key, a specific object, a screen reflection
+- Diagram-as-image: a visual schema or flow without any text labels — shapes and arrows only
+
+DIRECTION-TO-STYLE GUIDANCE (use as a starting point, override if the post demands it):
+- practical → photorealistic scene or close-up detail
+- educational → flat illustration or diagram-as-image
+- news → photorealistic scene, dynamic angle, sense of movement
+- opinion → abstract metaphor or atmospheric scene with strong mood
+- critical → high-contrast photorealistic or abstract with tension
+
+COMPOSITION — vary the angle and framing:
+- Wide scene (environment + person in context)
+- POV shot (first-person perspective, viewer is the protagonist)
+- Close-up / macro (one object dominates, background blurred)
+- Top-down / aerial (flat lay, objects arranged from above)
+- Silhouette or backlit figure (mood over detail)
+Choose the framing that amplifies the post's core tension or insight.
+
+VISUAL ACCENT — name one specific dominant object or element that anchors the image.
+It must be concrete and directly tied to the post topic (not generic: not "a laptop", but "a laptop screen showing a half-written reply at 11pm").
+
+MANDATORY rules:
+- Include a human factor or something alive: a person, hands, a silhouette, a visible presence.
+- Describe lighting and mood (e.g. "cool blue office light", "warm late-afternoon glow", "sharp studio light on dark background").
+- NO text, labels, or UI elements visible in the image.
+- Write the brief as one vivid paragraph, not a bullet list.
 
 Return valid JSON with this shape:
 {{
