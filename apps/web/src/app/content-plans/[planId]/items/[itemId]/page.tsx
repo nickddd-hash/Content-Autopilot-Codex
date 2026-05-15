@@ -47,6 +47,18 @@ type JobRunResponse = {
   item_status: string;
 };
 
+type ContentPlanMeta = {
+  id: string;
+  product_id: string;
+  month: string;
+  theme: string | null;
+};
+
+type ProductMeta = {
+  id: string;
+  name: string;
+};
+
 function buildManualBriefFromDraft(draftTitle: string, draftMarkdown: string, regenNote?: string) {
   const sections: string[] = [];
   if (draftTitle) {
@@ -402,7 +414,11 @@ export default async function ContentPlanItemPage({
 }) {
   const { planId, itemId } = await params;
   const { publishError, illustrationError } = await searchParams;
-  const item = await fetchJson<ContentPlanItemDetail | null>(`/content-plans/${planId}/items/${itemId}`, null);
+  const [item, plan] = await Promise.all([
+    fetchJson<ContentPlanItemDetail | null>(`/content-plans/${planId}/items/${itemId}`, null),
+    fetchJson<ContentPlanMeta | null>(`/content-plans/${planId}`, null),
+  ]);
+  const product = plan ? await fetchJson<ProductMeta | null>(`/products/${plan.product_id}`, null) : null;
 
   if (!item) {
     return (
@@ -441,10 +457,26 @@ export default async function ContentPlanItemPage({
       <header className="page-header">
         <div>
           <p className="eyebrow">
-            <Link href={`/content-plans/${planId}`} className="item-link" style={{ marginRight: "8px" }}>
-              План
-            </Link>
-            / Тема #{item.order + 1}
+            {product && plan ? (
+              <>
+                <Link href={`/products/${plan.product_id}`} className="item-link">
+                  {product.name}
+                </Link>
+                {" / "}
+                <Link href={`/content-plans/${planId}`} className="item-link">
+                  Контент-план
+                </Link>
+                {" / "}
+              </>
+            ) : (
+              <>
+                <Link href={`/content-plans/${planId}`} className="item-link">
+                  Контент-план
+                </Link>
+                {" / "}
+              </>
+            )}
+            Тема #{item.order + 1}
           </p>
           <h1>{item.generated_draft_title || item.title}</h1>
           <p className="lead" style={{ marginTop: "12px" }}>
