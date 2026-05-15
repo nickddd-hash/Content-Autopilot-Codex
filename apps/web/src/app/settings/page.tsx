@@ -51,6 +51,8 @@ const IMAGE_MODEL_OPTIONS = [
   { value: "black-forest-labs/flux.2-klein", label: "OpenRouter · FLUX.2 Klein" },
   { value: "black-forest-labs/flux.2-pro", label: "OpenRouter · FLUX.2 Pro" },
   { value: "black-forest-labs/flux.2-max", label: "OpenRouter · FLUX.2 Max" },
+  { value: "google/gemini-3.1-flash-image-preview", label: "Hubris · Gemini Image Flash" },
+  { value: "google/gemini-2.5-flash-image", label: "Hubris · Gemini Image Nano" },
 ];
 
 const VIDEO_MODEL_OPTIONS = [

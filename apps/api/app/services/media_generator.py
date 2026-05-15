@@ -18,6 +18,7 @@ MEDIA_OUTPUT_DIR = Path(settings.media_storage_dir)
 OPENAI_IMAGE_BASE_URL = "https://api.openai.com/v1"
 OPENAI_IMAGE_MODEL = "gpt-image-1"
 OPENROUTER_IMAGE_BASE_URL = "https://openrouter.ai/api/v1"
+HUBRIS_IMAGE_BASE_URL = "https://api.hubris.pw/v1"
 ALLOWED_UPLOAD_MIME_TYPES = {
     "image/png": ".png",
     "image/jpeg": ".jpg",
@@ -64,6 +65,24 @@ async def _get_image_runtime(session: AsyncSession) -> tuple[str, str, str, str]
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="OPENROUTER_API_KEY is not configured for illustration generation.",
+            )
+
+        return provider, api_key, base_url.rstrip("/"), model
+
+    if provider == "hubris":
+        api_key = await _read_system_setting(session, "HUBRIS_API_KEY") or os.getenv("HUBRIS_API_KEY")
+        base_url = HUBRIS_IMAGE_BASE_URL
+        model = (
+            shared_model
+            or await _read_system_setting(session, "HUBRIS_IMAGE_MODEL")
+            or os.getenv("HUBRIS_IMAGE_MODEL")
+            or "google/gemini-3.1-flash-image-preview"
+        )
+
+        if not api_key:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="HUBRIS_API_KEY is not configured for illustration generation.",
             )
 
         return provider, api_key, base_url.rstrip("/"), model
@@ -207,14 +226,14 @@ async def generate_illustration_for_item(session: AsyncSession, item: ContentPla
 
     try:
         async with httpx.AsyncClient(timeout=180.0) as client:
-            if provider == "openrouter":
+            if provider in ("openrouter", "hubris"):
+                extra_headers = {}
+                if provider == "openrouter":
+                    extra_headers["HTTP-Referer"] = "https://content.flowsmart.ru"
+                    extra_headers["X-OpenRouter-Title"] = "Athena Content"
                 response = await client.post(
                     f"{base_url}/chat/completions",
-                    headers={
-                        **headers,
-                        "HTTP-Referer": "https://content.flowsmart.ru",
-                        "X-OpenRouter-Title": "Athena Content",
-                    },
+                    headers={**headers, **extra_headers},
                     json={
                         "model": model,
                         "messages": [{"role": "user", "content": prompt}],
@@ -326,7 +345,7 @@ async def generate_illustration_for_item(session: AsyncSession, item: ContentPla
                 )
             image_bytes = base64.b64decode(b64_data)
 
-    elif provider == "openrouter":
+    elif provider in ("openrouter", "hubris"):
         choices = data.get("choices")
         if not isinstance(choices, list) or not choices:
             raise HTTPException(
