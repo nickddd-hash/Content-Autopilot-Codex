@@ -55,19 +55,6 @@ function calcPostCount(startStr: string, endStr: string, postsPerWeek: number): 
   return Math.max(1, Math.round((days / 7) * postsPerWeek));
 }
 
-function formatMonthLabel(startStr: string, endStr: string): string {
-  const start = new Date(startStr + "T00:00:00");
-  const end = new Date(endStr + "T00:00:00");
-  const fmt = (d: Date) =>
-    d.toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
-  if (
-    start.getMonth() === end.getMonth() &&
-    start.getFullYear() === end.getFullYear()
-  ) {
-    return fmt(start);
-  }
-  return `${fmt(start)} – ${fmt(end)}`;
-}
 
 export default function ProductPlanForm({ productId }: ProductPlanFormProps) {
   const today = useMemo(() => new Date(), []);
@@ -137,7 +124,7 @@ export default function ProductPlanForm({ productId }: ProductPlanFormProps) {
     try {
       const plan = await postJson<ContentPlanResponse>("/content-plans", {
         product_id: productId,
-        month: formatMonthLabel(startDate, endDate),
+        month: startDate.slice(0, 7),
         theme: name.trim() || null,
         status: "draft",
         items: [],
