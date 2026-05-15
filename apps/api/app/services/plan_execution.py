@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import traceback
 from datetime import datetime, time, timedelta, timezone
 from uuid import UUID
+
+logger = logging.getLogger(__name__)
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -10,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.session import AsyncSessionLocal
-from app.models import ContentPlan, ContentPlanItem, JobRun, Product, ProductChannel
+from app.models import ContentEvaluationResult, ContentPlan, ContentPlanItem, JobRun, Product, ProductChannel
 from app.services.generation import build_content_plan_item_detail, start_manual_generation
 from app.services.media_generator import generate_illustration_for_item
 from app.services.plan_generation import generate_plan_items_for_plan
@@ -75,7 +79,7 @@ async def _get_plan_with_product(session: AsyncSession, plan_id: UUID) -> Conten
     statement = (
         select(ContentPlan)
         .where(ContentPlan.id == plan_id)
-        .options(selectinload(ContentPlan.items))
+        .options(selectinload(ContentPlan.items).selectinload(ContentPlanItem.evaluation_results).selectinload(ContentEvaluationResult.evaluator))
         .options(selectinload(ContentPlan.product).selectinload(Product.content_settings))
         .options(selectinload(ContentPlan.product).selectinload(Product.channels))
     )
@@ -208,6 +212,7 @@ async def _run_plan_pipeline_job(
                 job.meta_json = {**(job.meta_json or {}), "result": "cancelled"}
                 await session.commit()
     except Exception as exc:
+        logger.error("plan_pipeline_job %s failed:\n%s", job_id, traceback.format_exc())
         async with AsyncSessionLocal() as session:
             job = await session.get(JobRun, job_id)
             if job is None:
