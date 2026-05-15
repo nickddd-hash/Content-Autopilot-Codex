@@ -27,7 +27,7 @@ from app.schemas.content_plan import (
     RunPlanPipelinePayload,
 )
 from app.schemas.job_run import JobRunRead, StartGenerationResponse
-from app.services.generation import build_content_plan_item_detail, start_manual_generation, validate_status_transition
+from app.services.generation import build_content_plan_item_detail, regenerate_item_visual_brief, start_manual_generation, validate_status_transition
 from app.services.media_generator import generate_illustration_for_item, save_uploaded_illustration_for_item
 from app.services.plan_execution import (
     build_plan_materials,
@@ -427,6 +427,15 @@ async def generate_content_plan_item_illustration(
     item = await _get_item_or_404(session, plan_id, item_id)
     await generate_illustration_for_item(session, item)
     return build_content_plan_item_detail(item)
+
+
+@router.post("/{plan_id}/items/{item_id}/regenerate-visual-brief", response_model=ContentPlanItemDetailRead)
+async def regenerate_content_plan_item_visual_brief(
+    plan_id: UUID,
+    item_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    return await regenerate_item_visual_brief(session, plan_id, item_id)
 
 
 @router.post("/{plan_id}/items/{item_id}/upload-illustration", response_model=ContentPlanItemDetailRead)

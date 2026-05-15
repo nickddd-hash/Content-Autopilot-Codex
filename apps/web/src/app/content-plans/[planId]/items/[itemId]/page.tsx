@@ -248,6 +248,23 @@ async function generateIllustrationAction(formData: FormData) {
   redirect(path);
 }
 
+async function regenerateVisualBriefAction(formData: FormData) {
+  "use server";
+  const planId = String(formData.get("planId"));
+  const itemId = String(formData.get("itemId"));
+  const path = `/content-plans/${planId}/items/${itemId}`;
+
+  try {
+    await postJson(`/content-plans/${planId}/items/${itemId}/regenerate-visual-brief`, {});
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось обновить промпт для иллюстрации.";
+    redirect(`${path}?illustrationError=${encodeURIComponent(message)}`);
+  }
+
+  revalidatePath(path);
+  redirect(path);
+}
+
 async function updateStatusAction(formData: FormData) {
   "use server";
   const planId = String(formData.get("planId"));
@@ -555,13 +572,22 @@ export default async function ContentPlanItemPage({
                 <span className="panel-kicker">Визуал</span>
                 <h2 className="panel-title">Иллюстрация</h2>
               </div>
-              <form action={generateIllustrationAction}>
-                <input type="hidden" name="planId" value={planId} />
-                <input type="hidden" name="itemId" value={itemId} />
-                <SubmitButton className="btn" pendingLabel="Генерируем иллюстрацию...">
-                  {generatedImageUrl ? "Перегенерировать иллюстрацию" : "Сгенерировать иллюстрацию"}
-                </SubmitButton>
-              </form>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <form action={regenerateVisualBriefAction}>
+                  <input type="hidden" name="planId" value={planId} />
+                  <input type="hidden" name="itemId" value={itemId} />
+                  <SubmitButton className="btn btn-ghost" pendingLabel="Обновляем промпт...">
+                    Обновить промпт
+                  </SubmitButton>
+                </form>
+                <form action={generateIllustrationAction}>
+                  <input type="hidden" name="planId" value={planId} />
+                  <input type="hidden" name="itemId" value={itemId} />
+                  <SubmitButton className="btn" pendingLabel="Генерируем иллюстрацию...">
+                    {generatedImageUrl ? "Перегенерировать иллюстрацию" : "Сгенерировать иллюстрацию"}
+                  </SubmitButton>
+                </form>
+              </div>
             </div>
 
             {generatedImageUrl ? (
