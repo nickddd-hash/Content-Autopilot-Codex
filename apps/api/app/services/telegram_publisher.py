@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models import ContentPlan, ContentPlanItem, ProductChannel
 from app.services.text_normalization import normalize_user_facing_text
+from app.services.userbot_publisher import publish_with_userbot
 
 TELEGRAM_CAPTION_LIMIT = 1024
 
@@ -144,33 +145,34 @@ async def publish_item_to_telegram_channels(
             )
 
         message_ids: list[int] = []
-        single_post_text = _build_single_telegram_post_text(title, draft_markdown)
-        if image_info:
+        html_text = _format_telegram_post_html(title, draft_markdown)
+        use_userbot = bool(settings.telegram_api_id and settings.telegram_api_hash)
+
+        if use_userbot:
+            # Userbot (Telethon / MTProto): caption limit is 4096, same as text messages.
+            # Use it for all posts — both text-only longreads and photo posts.
+            image_path_str = str(image_info[0]) if image_info else None
+            await publish_with_userbot(chat_id, html_text, image_path=image_path_str)
+        elif image_info:
+            single_post_text = _build_single_telegram_post_text(title, draft_markdown)
             if len(single_post_text) > TELEGRAM_CAPTION_LIMIT:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=(
                         "Для публикации одним Telegram-постом с иллюстрацией текст должен помещаться в подпись "
-                        f"до {TELEGRAM_CAPTION_LIMIT} символов. Сократите текст и сохраните правки."
+                        f"до {TELEGRAM_CAPTION_LIMIT} символов. Сократите текст или подключите Telegram-аккаунт."
                     ),
                 )
-
             file_path, mime_type = image_info
             photo_result = await _telegram_api_request(
                 bot_token,
                 "sendPhoto",
                 data={
                     "chat_id": chat_id,
-                    "caption": _format_telegram_post_html(title, draft_markdown),
+                    "caption": html_text,
                     "parse_mode": "HTML",
                 },
-                files={
-                    "photo": (
-                        file_path.name,
-                        file_path.read_bytes(),
-                        mime_type,
-                    )
-                },
+                files={"photo": (file_path.name, file_path.read_bytes(), mime_type)},
             )
             if isinstance(photo_result.get("message_id"), int):
                 message_ids.append(photo_result["message_id"])
@@ -180,7 +182,7 @@ async def publish_item_to_telegram_channels(
                 "sendMessage",
                 data={
                     "chat_id": chat_id,
-                    "text": _format_telegram_post_html(title, draft_markdown),
+                    "text": html_text,
                     "parse_mode": "HTML",
                     "disable_web_page_preview": "true",
                 },

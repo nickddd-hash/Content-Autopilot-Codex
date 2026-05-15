@@ -370,9 +370,14 @@ async def process_due_autopost_items(session: AsyncSession) -> int:
             await sync_topic_memory_status_for_item(session, item=item)
             await session.commit()
             published_count += 1
-        except HTTPException:
+        except HTTPException as exc:
             item.retry_count += 1
-            item.error_message = "Автопостинг не смог отправить материал в Telegram."
+            detail = getattr(exc, "detail", None)
+            item.error_message = f"Автопостинг: {detail}" if detail else "Автопостинг не смог отправить материал в Telegram."
+            await session.commit()
+        except Exception as exc:
+            item.retry_count += 1
+            item.error_message = f"Автопостинг (неожиданная ошибка): {exc}"
             await session.commit()
 
     return published_count
