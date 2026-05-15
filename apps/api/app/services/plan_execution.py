@@ -165,6 +165,7 @@ async def _run_plan_pipeline_job(
     job_id: UUID,
     plan_id: UUID,
     generate_items: bool,
+    build_materials: bool,
     theme_override: str | None,
     num_items_override: int | None,
 ) -> None:
@@ -186,7 +187,7 @@ async def _run_plan_pipeline_job(
                     theme_override=theme_override,
                     num_items_override=num_items_override,
                 )
-            built_items = await build_plan_materials(session, plan_id)
+            built_items = await build_plan_materials(session, plan_id) if build_materials else []
 
         async with AsyncSessionLocal() as session:
             job = await session.get(JobRun, job_id)
@@ -259,6 +260,7 @@ async def start_plan_pipeline_job(
     plan_id: UUID,
     *,
     generate_items: bool = False,
+    build_materials: bool = True,
     theme_override: str | None = None,
     num_items_override: int | None = None,
 ) -> JobRun:
@@ -295,6 +297,7 @@ async def start_plan_pipeline_job(
             job_id=job.id,
             plan_id=plan.id,
             generate_items=generate_items,
+            build_materials=build_materials,
             theme_override=theme_override,
             num_items_override=num_items_override,
         )

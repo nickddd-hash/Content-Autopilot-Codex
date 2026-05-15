@@ -168,6 +168,7 @@ class GeneratePlanItemsPayload(BaseModel):
 
 class RunPlanPipelinePayload(BaseModel):
     generate_items: bool = False
+    build_materials: bool = True
     theme: str | None = Field(default=None, max_length=255)
     num_items: int | None = Field(default=None, ge=1, le=30)
 

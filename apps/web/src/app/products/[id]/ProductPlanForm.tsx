@@ -141,6 +141,7 @@ export default function ProductPlanForm({ productId }: ProductPlanFormProps) {
       if (genTopics) {
         await postJson(`/content-plans/${plan.id}/run-pipeline`, {
           generate_items: true,
+          build_materials: genPosts,
           num_items: postCount,
         });
       }

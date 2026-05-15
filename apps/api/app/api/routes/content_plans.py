@@ -476,6 +476,7 @@ async def run_content_plan_pipeline(
         session,
         plan_id,
         generate_items=options.generate_items,
+        build_materials=options.build_materials,
         theme_override=options.theme,
         num_items_override=options.num_items,
     )
