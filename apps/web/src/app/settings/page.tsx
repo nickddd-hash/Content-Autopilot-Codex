@@ -97,7 +97,7 @@ export default async function SettingsPage() {
               Провайдер
               <HelpHint text="Определяет, куда система отправляет запросы на текст, изображения и видео." />
             </label>
-            <select id="LLM_PROVIDER" name="LLM_PROVIDER" className="form-input" defaultValue={getValue("LLM_PROVIDER", "openai")}>
+            <select key={getValue("LLM_PROVIDER", "openai")} id="LLM_PROVIDER" name="LLM_PROVIDER" className="form-input" defaultValue={getValue("LLM_PROVIDER", "openai")}>
               {PROVIDER_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -186,7 +186,7 @@ export default async function SettingsPage() {
                 Текст
                 <HelpHint text="Модель для контент-планов, постов и перегенерации текста." />
               </label>
-              <select id="TEXT_MODEL" name="TEXT_MODEL" className="form-input" defaultValue={getValue("TEXT_MODEL", "google/gemini-2.5-flash")}>
+              <select key={getValue("TEXT_MODEL", "google/gemini-2.5-flash")} id="TEXT_MODEL" name="TEXT_MODEL" className="form-input" defaultValue={getValue("TEXT_MODEL", "google/gemini-2.5-flash")}>
                 {TEXT_MODEL_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -204,6 +204,7 @@ export default async function SettingsPage() {
                 id="IMAGE_MODEL"
                 name="IMAGE_MODEL"
                 className="form-input"
+                key={getValue("IMAGE_MODEL", "google/gemini-3.1-flash-image-preview")}
                 defaultValue={getValue("IMAGE_MODEL", "google/gemini-3.1-flash-image-preview")}
               >
                 {IMAGE_MODEL_OPTIONS.map((option) => (
@@ -219,7 +220,7 @@ export default async function SettingsPage() {
                 Видео
                 <HelpHint text="Заготовка на будущее: здесь будет модель для видео." />
               </label>
-              <select id="VIDEO_MODEL" name="VIDEO_MODEL" className="form-input" defaultValue={getValue("VIDEO_MODEL")}>
+              <select key={getValue("VIDEO_MODEL")} id="VIDEO_MODEL" name="VIDEO_MODEL" className="form-input" defaultValue={getValue("VIDEO_MODEL")}>
                 {VIDEO_MODEL_OPTIONS.map((option) => (
                   <option key={option.value || "empty"} value={option.value}>
                     {option.label}
