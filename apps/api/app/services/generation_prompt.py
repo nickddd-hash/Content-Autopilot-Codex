@@ -29,15 +29,23 @@ What must not appear by default:
 """.strip()
 
 POST_CONSTRUCTION_RULES = """
-How to construct the post (Expert Narrative Architecture):
-1. THE SHARP HOOK: Start with a non-obvious observation, a counter-intuitive fact, or a "brutal truth" about the current business process. No "In today's world" or "Imagine".
-2. THE CONFLICT/DEPTH: Describe the invisible cost of the current manual process. Show the friction, the energy loss, and the systemic failure, not just "time loss".
-3. THE MECHANISM (THE "HOW"): Explain exactly how the AI/automation works under the hood. Do not just say "it automates". Say "The agent parses the incoming intent, checks the client's history in the CRM, and generates a personalized offer based on previous purchase velocity."
-4. THE CONCRETE CASE: Provide a detailed breakdown of a specific implementation. Include the "Before" (manual chaos) and "After" (automated system). Use specific numbers, roles, and process steps.
-5. THE STRATEGIC INSIGHT: End with a conclusion that shifts the reader's perspective. Why is this a competitive advantage? What is the long-term impact on the business model?
-6. FACT-DENSITY: Every sentence must contain a new fact, a specific action, or a logical step. Delete any sentence that serves as a generic transition.
-7. TARGET LENGTH: Aim for 1500-2500 characters. Use the space to provide deep value, detailed examples, and thorough explanations. A post must be a "finished piece of information" - a holistic fact.
-8. FORMATTING: Plain text only. Do NOT use markdown syntax: no **, no *, no __, no #, no >, no backticks. Use only paragraph breaks and numbered or dash lists where needed. Bold and italic will not render in the final channel.
+Post structure (use this exact 4-part format, in this order):
+
+PART 1 — HOOK (1-2 sentences)
+A sharp, non-obvious observation or a concrete painful moment. The reader must think "that's exactly me" or "I've never thought of it this way". No generic openers. No "In today's world". No "Imagine".
+
+PART 2 — SITUATION (2-4 sentences, one paragraph)
+Name the specific broken process, the hidden cost, or the recurring friction. Be concrete: who, what breaks, what it actually costs (time, money, deals, trust). Do not stay abstract.
+
+PART 3 — SOLUTION (3-4 bullet points, dash-separated)
+Each bullet = one specific mechanism, action or result. Not "AI automates this" but "The bot pulls the client history from CRM, finds the last open question and sends a personalised follow-up — without the manager lifting a finger." Make each bullet a finished, scannable fact.
+
+PART 4 — CLOSE (1-2 sentences)
+A perspective shift or a concrete takeaway. What changes when this is in place? End clean. If a CTA is required, it goes here as a single natural sentence — not a separate paragraph.
+
+LENGTH RULE: Write enough to complete every part fully. Never cut a thought mid-sentence. Typical result: 900-1400 characters. Extend if a section genuinely needs more detail. Cut if a sentence adds nothing new.
+
+FORMATTING: Plain text only. No markdown: no **, no *, no __, no #, no >, no backticks. Use paragraph breaks between parts. Use dashes for bullets in Part 3. Bold and italic do not render in the channel.
 """.strip()
 
 
@@ -77,11 +85,11 @@ def _build_channel_instruction(channels: list[str], *, include_illustration: boo
         return (
             "Primary format: Telegram post.\n"
             "- draft_markdown must be a ready-to-post Telegram text, not an article.\n"
-            "- Aim for 1200 to 2200 characters to ensure depth and holistic facts.\n"
-            "- Use short paragraphs, strong opening, concrete examples and one clear takeaway.\n"
-            "- Do not use long article headings, subheadings or bulky section structure.\n"
-            "- Avoid em dashes and en dashes. Prefer commas, periods, colons or a short hyphen when really needed.\n"
-            "- Keep the result calm, practical, human and easy to read on mobile.\n"
+            "- Follow the 4-part post structure defined above (Hook, Situation, Solution bullets, Close).\n"
+            "- Complete every part fully. Never end mid-thought. Typical result: 900-1400 characters.\n"
+            "- No article headings, subheadings or bulky section labels.\n"
+            "- Avoid em dashes and en dashes. Use commas, periods, colons or a short hyphen.\n"
+            "- Easy to scan on mobile: short paragraphs, dash bullets, one idea per sentence.\n"
             "- The post should feel publishable with minimal editing."
         )
 
