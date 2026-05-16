@@ -201,7 +201,7 @@ async function regenerateDraftAction(formData: FormData) {
       ? { ...(researchData.generation_payload as Record<string, unknown>) }
       : {};
 
-  researchData.manual_brief = buildManualBriefFromDraft(draftTitle, draftMarkdown, regenNote);
+  researchData.manual_brief = regenNote ? `Author regeneration note (apply strictly):\n${regenNote}` : "";
   researchData.regen_note = regenNote;
   researchData.generation_payload = {
     ...currentPayload,
